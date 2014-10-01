@@ -31,7 +31,7 @@
  </parent>
  <groupId>org.xwiki.contrib</groupId>
  <artifactId>application-querygenerator</artifactId>
- <version>1.0</version>
+ <version>1.0-SNAPSHOT</version>
  <name>Query Generator and Query Macro</name>
  <packaging>xar</packaging>
  <description>Generates XWQL queries and UI from XClasses</description>
