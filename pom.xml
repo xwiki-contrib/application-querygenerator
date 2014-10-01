@@ -34,7 +34,7 @@
  <version>1.0</version>
  <name>Query Generator and Query Macro</name>
  <packaging>xar</packaging>
- <description></description>
+ <description>Generates XWQL queries and UI from XClasses</description>
  <scm>
    <connection>scm:git:git://github.com/xwiki-contrib/application-querygenerator.git</connection>
    <developerConnection>scm:git:git@github.com:xwiki-contrib/application-querygenerator.git</developerConnection>
