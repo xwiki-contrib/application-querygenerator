@@ -50,6 +50,9 @@
  <properties>
    <!-- Don't run CLIRR here since there's no Java code. -->
    <xwiki.clirr.skip>true</xwiki.clirr.skip>
+   <xwiki.extension.features>
+   ludovic:querygenerator
+   </xwiki.extension.features>
  </properties>
  <build>
    <!-- Needed to add support for the XAR packaging -->
