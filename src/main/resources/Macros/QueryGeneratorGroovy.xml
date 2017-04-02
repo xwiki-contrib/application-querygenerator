@@ -1,52 +1,402 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!--
- * See the NOTICE file distributed with this work for additional
- * information regarding copyright ownership.
- *
- * This is free software; you can redistribute it and/or modify it
- * under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation; either version 2.1 of
- * the License, or (at your option) any later version.
- *
- * This software is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this software; if not, write to the Free
- * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
- * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
--->
 
-<xwikidoc>
+<xwikidoc version="1.3" reference="Macros.QueryGeneratorGroovy" locale="">
   <web>Macros</web>
   <name>QueryGeneratorGroovy</name>
   <language/>
   <defaultLanguage/>
   <translation>0</translation>
-  <parent>Macros.QueryGenerator</parent>
   <creator>xwiki:XWiki.Admin</creator>
+  <creationDate>1451602800000</creationDate>
+  <parent>Macros.QueryGenerator</parent>
   <author>xwiki:XWiki.Admin</author>
-  <customClass/>
   <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
-  <creationDate>1370292276000</creationDate>
-  <date>1370296744000</date>
-  <contentUpdateDate>1370296744000</contentUpdateDate>
+  <date>1451602800000</date>
+  <contentUpdateDate>1451602800000</contentUpdateDate>
   <version>1.1</version>
   <title>Query Generator Groovy Helper</title>
-  <template/>
-  <defaultTemplate/>
-  <validationScript/>
   <comment/>
   <minorEdit>false</minorEdit>
   <syntaxId>xwiki/2.1</syntaxId>
   <hidden>false</hidden>
-  <content>public class QG {
+  <content>import com.xpn.xwiki.util.Util;
+import org.apache.ecs.xhtml.input;
+import org.apache.ecs.xhtml.select;
+import org.apache.ecs.xhtml.option;
 
- def getQueryPlugin(xcontext) {
-  return new com.xpn.xwiki.plugin.query.QueryPlugin("query", "", xcontext.getContext())
+public class QueryGenerator {
+ def xwiki;
+ def context;
+ def request;
+
+ def debugStr = "";
+
+ public addDebug(str) {
+   debugStr += str + "\n";
  }
 
+ public getDebug() {
+   return debugStr;
+ }
+
+ public setXWiki(xwiki, context) {
+   this.xwiki = xwiki;
+   this.context = context;
+   this.request = context.request;
+ }
+
+ public Map createQueryFromRequest(className) {
+   Map query = new HashMap();
+   query.put("searchclass", className);
+   String[] columns = request.getParameterValues("searchdisplayfields");
+   query.put("searchdisplayfields", columns);
+   String[] order = request.getParameterValues("searchorder");
+   query.put("searchorder", order); 
+
+   def baseClass = xwiki.getDocument(className).getxWikiClass();
+   for (propname in baseClass.getPropertyNames()) {
+       for (paramName in request.getParameterNames()) {
+        if (paramName.startsWith(className + "_" + propname)) {
+         def list = Arrays.asList(request.getParameterValues(paramName));
+         def value = null;
+         if (list.size()&gt;0) {  
+           value = (list.size()==1) ? list.getAt(0) : list;
+           query.put(paramName.substring(className.length()+1), value);
+         }
+        }
+       }
+   }
+   return query;
+ }
+
+ def displaySearchColumns(className, prefix, query) {
+        def baseClass = xwiki.getDocument(className).getxWikiClass();
+        def select = new select(prefix + "searchdisplayfields", 5);
+        select.setMultiple(true);
+        select.setName(prefix + "searchdisplayfields");
+        select.setID(prefix + "searchdisplayfields");
+ 
+        List&lt;String&gt; list = Arrays.asList(baseClass.getPropertyNames());
+        Map&lt;String, String&gt; prettynamesmap = new HashMap&lt;String, String&gt;();
+        for (int i = 0; i &lt; list.size(); i++) {
+            String propname = list.get(i);
+            list.set(i, prefix + propname);
+            prettynamesmap.put(prefix + propname, baseClass.get(propname).getPrettyName());
+        }
+
+        def selectlist = query.get("searchdisplayfields");
+        if (selectlist==null) selectlist = new ArrayList();
+
+        // Add options from Set
+        for (value in list) {
+            String displayValue = prettynamesmap.get(value);
+            def option = new option(displayValue, displayValue);
+            option.setValue(value);
+            if (selectlist.contains(value)) {
+                option.setSelected(true);
+            }
+            select.addElement(option);
+        }
+
+        // Add aggregate options from Set
+        for (value in list) {
+            String displayValue = prettynamesmap.get(value);
+            def propDef = baseClass.get(value)
+addDebug(value + ": " + propDef.type)
+addDebug(propDef.getBasePropertyClass().type);
+            if (propDef.type.equals("NumberClass")) {
+               def aggOption = new option("Aggregate: sum " + displayValue, "Aggregate: sum " + displayValue);
+               aggOption.setValue("AGG_SUM_" + value);
+               if (selectlist.contains("AGG_SUM_" + value)) {
+                 aggOption.setSelected(true);
+               }
+               select.addElement(aggOption);
+            } else {
+               def aggOptionCount = new option("Aggregate: count " + displayValue, "Aggregate: count " + displayValue);
+               aggOptionCount.setValue("AGG_COUNT_" + value);
+               if (selectlist.contains("AGG_COUNT_" + value)) {
+                 aggOptionCount.setSelected(true);
+               }
+               select.addElement(aggOptionCount);
+
+               def aggOptionCountDistinct = new option("Aggregate: count distinct " + displayValue, "Aggregate: count distinct " + displayValue);
+               aggOptionCountDistinct.setValue("AGG_COUNTDISTINCT_" + value);
+               if (selectlist.contains("AGG_COUNTDISTINCT_" + value)) {
+                 aggOptionCountDistinct.setSelected(true);
+               }
+               select.addElement(aggOptionCountDistinct);
+            }
+        }
+        return select.toString();
+    }
+
+ def displaySearchOrder(className, prefix, query) {
+        def baseClass = xwiki.getDocument(className).getxWikiClass();
+        def select = new select(prefix + "searchorder", 5);
+        select.setMultiple(true);
+        select.setName(prefix + "searchorder");
+        select.setID(prefix + "searchorder");
+
+        List&lt;String&gt; list = Arrays.asList(baseClass.getPropertyNames());
+        Map&lt;String, String&gt; prettynamesmap = new HashMap&lt;String, String&gt;();
+        for (int i = 0; i &lt; list.size(); i++) {
+            String propname = list.get(i);
+            list.set(i, prefix + propname);
+            prettynamesmap.put(prefix + propname, baseClass.get(propname).getPrettyName());
+        }
+
+        def selectlist = query.get("searchorder");
+        if (selectlist==null) selectlist = new ArrayList();
+
+        // Add options from Set
+        for (value in list) {
+            String displayValue = prettynamesmap.get(value);
+            def option = new option(displayValue + " asc", displayValue + " asc");
+            option.addElement(displayValue);
+            option.setValue(value + " asc");
+            if (selectlist.contains(value + " asc")) {
+                option.setSelected(true);
+            }
+            select.addElement(option);
+
+            def optionDesc = new option(displayValue + " desc", displayValue + " desc");
+            optionDesc.addElement(displayValue);
+            optionDesc.setValue(value + " desc");
+            if (selectlist.contains(value + " desc")) {
+                optionDesc.setSelected(true);
+            }
+            select.addElement(optionDesc);
+        }
+
+        return select.toString();
+    }
+
+ def makeQuery(query) {
+        def xwqlselect = new StringBuffer();
+        def xwqlfrom = new StringBuffer();
+        def xwqlwhere = new StringBuffer();
+        def xwqlgroupBy = new StringBuffer();
+        def xwqlorder = new StringBuffer();
+
+        def hasAggregate = false;
+        def className = query.get("searchclass");
+        def baseClass = xwiki.getDocument(className).getxWikiClass()
+
+        def selectList = new ArrayList();
+        def groupByList = new ArrayList();
+        def columns = query.get("searchdisplayfields");
+        for (col in columns) {
+           if (col.startsWith("AGG_")) {
+             hasAggregate = true;
+             def colName = col.replaceAll("AGG_(.*?)_","");
+             if (col.startsWith("AGG_SUM")) {
+               selectList.add("sum(obj.${colName})");
+             } else if (col.startsWith("AGG_COUNT")) {
+               selectList.add("count(obj.${colName})");
+             } else if (col.startsWith("AGG_COUNTDISTINCT")) {
+               selectList.add("count(distinct obj.${colName})");
+             }
+           } else {
+             selectList.add("obj.${col}");
+             groupByList.add("obj." + col);
+           }
+        }
+        xwqlselect.append(selectList.join(","))
+        xwqlgroupBy.append(groupByList.join(","))
+
+        xwqlfrom.append("Document as doc, doc.object(" + className + ") as obj");
+        def clauseList = new ArrayList();
+        for (propName in baseClass.getPropertyNames()) {
+          def propClass = baseClass.get(propName);
+          if (propClass.type=="xxx") {
+          } else if (propClass.type.contains("ListClass")) {
+            clauseList.addAll(makeQueryList(propClass, propName, propName, "obj.", query));
+          } else {
+            clauseList.addAll(makeQueryString(propClass, propName, propName, "obj.", query));
+          }
+        }
+
+        xwqlwhere.append("doc.fullName not like '%Template'");
+        for (clause in clauseList)
+         xwqlwhere.append(" and " + clause); 
+        
+        if (query.get("searchorder")!=null)
+         xwqlorder.append("obj." + query.get("searchorder").getAt(0))
+
+        String xwql = "select doc.fullName";
+        if (hasAggregate) {
+          xwql = "select " + xwqlselect;
+        }
+
+        xwql += " from " + xwqlfrom.toString();
+        if (xwqlwhere.length() != 0)
+            xwql += " where " + xwqlwhere.toString();
+        if (hasAggregate &amp;&amp; xwqlgroupBy.length() != 0)
+            xwql += " group by " + xwqlgroupBy.toString();
+        if (xwqlorder.length() != 0) {
+            xwql += " order by " + xwqlorder.toString();
+        }
+
+        return xwql;
+  }
+
+ public String displaySearch(fieldName, className, query) {
+    def baseClass = xwiki.getDocument(className).getxWikiClass();
+    def propClass = baseClass.get(fieldName);
+    def prefix = "" + className + "_";
+    def name = fieldName;
+    if (propClass==null) {
+       return "";
+    } else {
+       if (propClass.type=="xxx") {
+
+       } else if (propClass.type.contains("ListClass")) {
+         return displaySearchList(propClass, name, prefix, query);
+       } else {
+         return displaySearchString(propClass, name, prefix, query);
+       }
+    }
+ }
+
+ /*
+  String Field
+ */
+ def displaySearchString(propClass, name, prefix, query) {
+        def input = new input();
+        input.setType("text");
+        input.setName(prefix + name);
+        input.setID(prefix + name);
+        def fieldFullName = name;
+        def data = query.get(fieldFullName);
+        String value = "";
+        if (data!=null) {
+            if (data instanceof List) {
+              value= data.getAt(0);
+            } else {
+             value = data;
+            }
+        }
+        if (value != null) {
+            input.setValue(value.toString());
+        }
+        return input.toString();
+ }
+
+ def makeQueryString(propClass, name, prefix, queryTablePrefix, map) {
+        def clauseList = new ArrayList();
+        def fullPropName = queryTablePrefix + name;
+
+        String value = (String) map.get(prefix);
+        if ((value != null) &amp;&amp; (!value.equals(""))) {
+            String startsWith = (String) map.get(prefix + "startswith");
+            String endsWith = (String) map.get(prefix + "endswith");
+            if ("1".equals(startsWith)) {
+                clauseList.add("lower(" + fullPropName + ") like '" + value.toLowerCase() + "%'");
+            } else if ("1".equals(endsWith)) {
+                clauseList.add("lower(" + fullPropName + ") like '%" + value.toLowerCase() + "'");
+            } else {
+                clauseList.add("lower(" + fullPropName + ") like '%" + value.toLowerCase() + "%'");
+            }
+        }
+
+        value = (String) map.get(prefix + "exact");
+        if ((value != null) &amp;&amp; (!value.equals(""))) {
+            clauseList.add(fullPropName + "='" + value + "'");
+        }
+
+        value = (String) map.get(prefix + "not");
+        if ((value != null) &amp;&amp; (!value.equals(""))) {
+            clauseList.add(fullPropName + "!='" + value + "'");
+        }
+        return clauseList;
+  }
+
+  /*
+   List Field
+  */
+  def displaySearchList(propClass, name, prefix, query) {
+    def displayType = propClass.getBasePropertyClass().getDisplayType()
+    if (displayType.equals("input")) {
+            return displaySearchString(propClass, name, prefix, query);
+    } else if (displayType.equals("radio") || displayType.equals("checkbox")) {
+            return displaySearchCheckbox(propClass, name, prefix, query);
+    } else {
+            return displaySearchSelect(propClass, name, prefix, query);
+    }
+  }
+
+  def displaySearchCheckbox(propClass, name, prefix, query) {
+        StringBuffer buffer = new StringBuffer();
+        def list = propClass.getListValues();
+        def selectlist = query.get(fieldFullName);
+        def pClass = propClass.getBasePropertyClass();
+       
+        // Add options from Set
+        for (rawvalue in list) {
+            String value = pClass.getElementValue(rawvalue);
+            String display = pClass.getDisplayValue(rawvalue, fieldFullName, propClass.getMapValues(), context.getContext());
+            input radio =
+                new input(input.checkbox, prefix + name, value);
+
+            if (selectlist!=null &amp;&amp; selectlist.contains(value)) {
+                radio.setChecked(true);
+            }
+            radio.addElement(display);
+            buffer.append(radio.toString());
+            buffer.append("&lt;br/&gt;");            
+        }
+        return buffer.toString();
+    }
+
+ def displaySearchSelect(propClass, name, prefix, query) {
+        def select = new select(prefix + name, 1);
+        select.setMultiple(true);
+        select.setSize(5);
+        select.setName(prefix + name);
+        select.setID(prefix + name);
+
+        def list = propClass.getListValues();
+        def fieldFullName = name;
+        def selectlist = query.get(fieldFullName);
+        def pClass = propClass.getBasePropertyClass();        
+
+        // Add options from Set
+        for (String rawvalue : list) {
+            String value = pClass.getElementValue(rawvalue);
+            String display = pClass.getDisplayValue(rawvalue, fieldFullName, propClass.getMapValues(), context.getContext());
+            def option = new option(display, value);
+            option.addElement(display);
+            if (selectlist!=null &amp;&amp; selectlist.contains(value)) {
+                option.setSelected(true);
+            }
+            select.addElement(option);
+        }
+
+        return select.toString();
+    }
+
+ def makeQueryList(propClass, name, prefix, queryTablePrefix, map) {
+       def clauseList = new ArrayList();
+       def fullPropName = queryTablePrefix + name;
+       def pClass = propClass.getBasePropertyClass();   
+  
+       def values = map.get(prefix);
+        if ((values == null) || (values.equals(""))) {
+            return clauseList;
+        }
+        def separator = pClass.isMultiSelect() ? " member of " : " = ";
+        if (values instanceof String) {
+            // general comparison '=' - tests at least one value =
+            clauseList.add("'" + values.toString() + "'" + separator + fullPropName);
+        } else {
+            String[] valuesarray = (String[]) values;
+            String[] criteriaarray = new String[valuesarray.length];
+            for (int i = 0; i &lt; valuesarray.length; i++) {
+                criteriaarray[i] = "'" + valuesarray[i] + "'" + separator + fullPropName;
+            }
+            clauseList.add("(" + StringUtils.join(criteriaarray, " or ") + ")");
+        }
+        return clauseList;
+    }
 }</content>
 </xwikidoc>
