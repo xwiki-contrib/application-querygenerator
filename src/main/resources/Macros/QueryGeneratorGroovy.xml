@@ -1,25 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<!--
- * See the NOTICE file distributed with this work for additional
- * information regarding copyright ownership.
- *
- * This is free software; you can redistribute it and/or modify it
- * under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation; either version 2.1 of
- * the License, or (at your option) any later version.
- *
- * This software is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this software; if not, write to the Free
- * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
- * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
--->
-
 <xwikidoc version="1.3" reference="Macros.QueryGeneratorGroovy" locale="">
   <web>Macros</web>
   <name>QueryGeneratorGroovy</name>
@@ -27,12 +7,12 @@
   <defaultLanguage/>
   <translation>0</translation>
   <creator>xwiki:XWiki.Admin</creator>
-  <creationDate>1451602800000</creationDate>
+  <creationDate>1514761200000</creationDate>
   <parent>Macros.QueryGenerator</parent>
   <author>xwiki:XWiki.Admin</author>
   <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
-  <date>1451602800000</date>
-  <contentUpdateDate>1451602800000</contentUpdateDate>
+  <date>1514761200000</date>
+  <contentUpdateDate>1514761200000</contentUpdateDate>
   <version>1.1</version>
   <title>Query Generator Groovy Helper</title>
   <comment/>
@@ -43,6 +23,7 @@
 import org.apache.ecs.xhtml.input;
 import org.apache.ecs.xhtml.select;
 import org.apache.ecs.xhtml.option;
+import org.apache.commons.lang.StringUtils;
 
 public class QueryGenerator {
  def xwiki;
@@ -118,6 +99,19 @@ public class QueryGenerator {
             select.addElement(option);
         }
 
+        def aggOption = new option("Aggregate: count(doc.fullName)", "Aggregate: count(doc.fullName)");
+        aggOption.setValue("AGG_COUNT");
+        if (selectlist.contains("AGG_COUNT")) {
+                 aggOption.setSelected(true);
+        }
+        select.addElement(aggOption);
+        aggOption = new option("Aggregate: count(distinct doc.fullName)", "Aggregate: count(distinct doc.fullName)");
+        aggOption.setValue("AGG_COUNTDISTINCT");
+        if (selectlist.contains("AGG_COUNTDISTINCT")) {
+          aggOption.setSelected(true);
+        }
+        select.addElement(aggOption);
+
         // Add aggregate options from Set
         for (value in list) {
             String displayValue = prettynamesmap.get(value);
@@ -125,12 +119,12 @@ public class QueryGenerator {
 addDebug(value + ": " + propDef.type)
 addDebug(propDef.getBasePropertyClass().type);
             if (propDef.type.equals("NumberClass")) {
-               def aggOption = new option("Aggregate: sum " + displayValue, "Aggregate: sum " + displayValue);
-               aggOption.setValue("AGG_SUM_" + value);
+               def aggOptionSum = new option("Aggregate: sum " + displayValue, "Aggregate: sum " + displayValue);
+               aggOptionSum.setValue("AGG_SUM_" + value);
                if (selectlist.contains("AGG_SUM_" + value)) {
-                 aggOption.setSelected(true);
+                 aggOptionSum.setSelected(true);
                }
-               select.addElement(aggOption);
+               select.addElement(aggOptionSum);
             } else {
                def aggOptionCount = new option("Aggregate: count " + displayValue, "Aggregate: count " + displayValue);
                aggOptionCount.setValue("AGG_COUNT_" + value);
@@ -153,7 +147,7 @@ addDebug(propDef.getBasePropertyClass().type);
  def displaySearchOrder(className, prefix, query) {
         def baseClass = xwiki.getDocument(className).getxWikiClass();
         def select = new select(prefix + "searchorder", 5);
-        select.setMultiple(true);
+        select.setMultiple(false);
         select.setName(prefix + "searchorder");
         select.setID(prefix + "searchorder");
 
@@ -209,7 +203,11 @@ addDebug(propDef.getBasePropertyClass().type);
            if (col.startsWith("AGG_")) {
              hasAggregate = true;
              def colName = col.replaceAll("AGG_(.*?)_","");
-             if (col.startsWith("AGG_SUM")) {
+             if (col=="AGG_COUNT") {
+               selectList.add("count(doc.fullName)");  
+             } else if (col=="AGG_COUNTDISTINCT") {
+               selectList.add("count(distinct doc.fullName)");  
+             } else if (col.startsWith("AGG_SUM")) {
                selectList.add("sum(obj.${colName})");
              } else if (col.startsWith("AGG_COUNT")) {
                selectList.add("count(obj.${colName})");
@@ -231,6 +229,8 @@ addDebug(propDef.getBasePropertyClass().type);
           if (propClass.type=="xxx") {
           } else if (propClass.type.contains("ListClass")) {
             clauseList.addAll(makeQueryList(propClass, propName, propName, "obj.", query));
+          } else if (propClass.type.contains("BooleanClass")) {
+            clauseList.addAll(makeQueryNumber(propClass, propName, propName, "obj.", query));
           } else {
             clauseList.addAll(makeQueryString(propClass, propName, propName, "obj.", query));
           }
@@ -258,6 +258,30 @@ addDebug(propDef.getBasePropertyClass().type);
         }
 
         return xwql;
+  }
+
+  def makeLiveTableFilters(query) {
+        def ltFilters = "";  
+        def className = query.get("searchclass");
+        def baseClass = xwiki.getDocument(className).getxWikiClass()
+        
+        def clauseList = new ArrayList();
+        for (propName in baseClass.getPropertyNames()) {
+          def propClass = baseClass.get(propName);
+
+          def values = query.get(propName);
+          if ((values != null) &amp;&amp; (!values.equals(""))) {
+          if (values instanceof String) {
+            clauseList.add(propName + "=" + values);
+          } else {
+            String[] valuesarray = (String[]) values;
+            for (int i = 0; i &lt; valuesarray.length; i++) {
+                clauseList.add(propName + "=" + valuesarray[i]);
+            }
+          }
+         }
+        }   
+        return clauseList.join("&amp;");
   }
 
  public String displaySearch(fieldName, className, query) {
@@ -348,6 +372,7 @@ addDebug(propDef.getBasePropertyClass().type);
   def displaySearchCheckbox(propClass, name, prefix, query) {
         StringBuffer buffer = new StringBuffer();
         def list = propClass.getListValues();
+        def fieldFullName = name;
         def selectlist = query.get(fieldFullName);
         def pClass = propClass.getBasePropertyClass();
        
@@ -355,7 +380,7 @@ addDebug(propDef.getBasePropertyClass().type);
         for (rawvalue in list) {
             String value = pClass.getElementValue(rawvalue);
             String display = pClass.getDisplayValue(rawvalue, fieldFullName, propClass.getMapValues(), context.getContext());
-            input radio =
+            def radio =
                 new input(input.checkbox, prefix + name, value);
 
             if (selectlist!=null &amp;&amp; selectlist.contains(value)) {
@@ -418,5 +443,36 @@ addDebug(propDef.getBasePropertyClass().type);
         }
         return clauseList;
     }
-}</content>
+
+    def makeQueryNumber(propClass, name, prefix, queryTablePrefix, map) {
+        def clauseList = new ArrayList();
+        def fullPropName = queryTablePrefix + name;
+
+        String value = (String) map.get(prefix);
+        if ((value != null) &amp;&amp; (!value.equals(""))) {
+            String startsWith = (String) map.get(prefix + "startswith");
+            String endsWith = (String) map.get(prefix + "endswith");
+            if ("1".equals(startsWith)) {
+                clauseList.add(fullPropName + " &gt; " + value);
+            } else if ("1".equals(endsWith)) {
+                clauseList.add(fullPropName + " &lt;" + value);
+            } else {
+                clauseList.add(fullPropName + " =" + value);
+            }
+        }
+
+        value = (String) map.get(prefix + "exact");
+        if ((value != null) &amp;&amp; (!value.equals(""))) {
+            clauseList.add(fullPropName + "=" + value);
+        }
+
+        value = (String) map.get(prefix + "not");
+        if ((value != null) &amp;&amp; (!value.equals(""))) {
+            clauseList.add(fullPropName + "!=" + value);
+        }
+        return clauseList;
+  }
+
+}
+</content>
 </xwikidoc>

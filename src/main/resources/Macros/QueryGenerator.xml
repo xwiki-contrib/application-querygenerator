@@ -1,25 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<!--
- * See the NOTICE file distributed with this work for additional
- * information regarding copyright ownership.
- *
- * This is free software; you can redistribute it and/or modify it
- * under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation; either version 2.1 of
- * the License, or (at your option) any later version.
- *
- * This software is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this software; if not, write to the Free
- * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
- * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
--->
-
 <xwikidoc version="1.3" reference="Macros.QueryGenerator" locale="">
   <web>Macros</web>
   <name>QueryGenerator</name>
@@ -27,37 +7,54 @@
   <defaultLanguage/>
   <translation>0</translation>
   <creator>xwiki:XWiki.Admin</creator>
-  <creationDate>1451602800000</creationDate>
+  <creationDate>1514761200000</creationDate>
   <parent>Main.WebHome</parent>
   <author>xwiki:XWiki.Admin</author>
   <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
-  <date>1451602800000</date>
-  <contentUpdateDate>1451602800000</contentUpdateDate>
+  <date>1514761200000</date>
+  <contentUpdateDate>1514761200000</contentUpdateDate>
   <version>1.1</version>
   <title>Query Generator</title>
   <comment/>
   <minorEdit>false</minorEdit>
   <syntaxId>xwiki/2.1</syntaxId>
   <hidden>true</hidden>
-  <content>{{velocity}}
+  <content>
+The Query Generator is here to help you write queries and macros allowing to display data from XWiki.
+It also provides the livetable and query macro to help show results using the query generated and can generate a chart macro.
+
+* The livetable macro supports a filters that can be included in the macro and also used dynamically. 
+* The query and chart macro support aggregates allowing to calculate numeric fields or count entries for each meta-data.
+
+{{velocity}}
 {{html}}
-&lt;form action =""&gt;
-Generate form for class: &lt;select name="classname"&gt;
-#if($request.classname)
-#set($classname = $request.classname)
+#if($request.appname &amp;&amp; $request.appname!="")
+ #set($appDoc = $xwiki.getDocument($request.appname))
+ #set($classname = $appDoc.getValue("class"))
+#elseif($request.classname)
+ #set($classname = $request.classname)
 #else
 #set($classname = "XWiki.XWikiUsers")
 #end
+#set($list = $services.query.xwql("from doc.object(AppWithinMinutes.LiveTableClass) as obj order by doc.title").execute())
+&lt;form action=""&gt;
+Choose Application &lt;select name="appname"&gt;
+&lt;option value=""&gt;---&lt;/option&gt;&gt;
+#foreach($appname in $list)
+&lt;option value="${escapetool.xml($appname)}"&gt;${xwiki.getDocument($appname).getDisplayTitle()}&lt;/option&gt;
+#end
+&lt;/select&gt;
+or Choose Class: &lt;select name="classname"&gt;
 #set($classes = $xwiki.classList)
 #foreach($classn in $classes)
 &lt;option value="${classn}" #if($classname==$classn) selected #end&gt;$classn&lt;/option&gt;
 #end
 &lt;/select&gt;
-&lt;input type="submit" value="Go" /&gt;
+&lt;input type="submit" value="Go" class="button" /&gt;
 &lt;/form&gt;
 {{/html}}
 
-
+#set($classDoc = $xwiki.getDocument($classname).getxWikiClass())
 #set($qg = $xwiki.parseGroovyFromPage("Macros.QueryGeneratorGroovy"))
 #set($ok = $qg.setXWiki($xwiki, $context))
 
@@ -94,16 +91,31 @@ Generate form for class: &lt;select name="classname"&gt;
 #end
 &lt;tr&gt;&lt;td&gt;&lt;b&gt;Columns&lt;/b&gt;&lt;/td&gt;&lt;td&gt;$qg.displaySearchColumns($classname, "", $query)&lt;/td&gt;
 &lt;td&gt;&lt;b&gt;Order by&lt;/b&gt;&lt;/td&gt;&lt;td&gt;$qg.displaySearchOrder($classname, "", $query)&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;b&gt;Output&lt;/b&gt;&lt;/td&gt;&lt;td&gt;
+#if($request.output)
+ #set($output = $request.getParameterValues("output"))
+#else
+ #set($output = ["livetable"])
+#end
+&lt;input type="checkbox" name="output" value="livetable" #if($output.contains("livetable"))checked#end /&gt; Livetable
+&lt;input type="checkbox" name="output" value="table" #if($output.contains("table"))checked#end/&gt; Table
+&lt;input type="checkbox" name="output" value="chart" #if($output.contains("chart"))checked#end/&gt; Chart
+&lt;/td&gt;
+&lt;/tr&gt;
 &lt;/table&gt;
-&lt;input type="submit" value="Go" /&gt;
+&lt;input type="submit" value="Go" class="button" /&gt;
 &lt;/form&gt;
 
 #if($request.query)
-#if($request.order)
-#set($order=$request.order)
+#if($request.searchorder)
+#set($order=$request.searchorder)
+#set($selectedColumn = $listtool.get($order.split(" "),0))
+#set($defaultOrder = $listtool.get($order.split(" "),1))
 #end
 
 #set($xwlquery = $qg.makeQuery($query))
+#set($ltFilters = $qg.makeLiveTableFilters($query))
 #set($columns = [])
 #foreach($field in $query.searchdisplayfields)
  #set($ok = $columns.add($field.replaceAll("${classname}_","")))
@@ -112,14 +124,32 @@ Generate form for class: &lt;select name="classname"&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;b&gt;Query (xwql):&lt;/b&gt;  $xwlquery&lt;/li&gt;
 &lt;li&gt;&lt;b&gt;Columns:&lt;/b&gt; $columns&lt;/li&gt;
-&lt;li&gt;&lt;b&gt;Macro:&lt;/b&gt; {{query query="$xwlquery" class="$classname" columns="$columns" headers="1" links="0" actions="1" /}}
+&lt;li&gt;&lt;b&gt;Table Macro:&lt;/b&gt; 
+{{query query="$xwlquery" class="$classname" columns="$columns" headers="1" links="0" actions="1" /}}
+&lt;li&gt;&lt;b&gt;Livetable Macro:&lt;/b&gt; 
+{{livetable #if($request.appname)app="${request.appname}"#else className="$classname" #end columns="${columns}" #if($selectedColumn)selectedColumn="${selectedColumn}"#end #if($defaultOrder)defaultOrder="${defaultOrder}"#end #if($ltFilters!="")extraParams="${ltFilters}"#end /}}
 &lt;/li&gt;
+&lt;li&gt;&lt;b&gt;Chart Macro:&lt;/b&gt; 
+{{awmchart #if($request.appname)app="${request.appname}"#else className="$classname" #end category="${columns}" type="pie" title="Chart" width="500" height="500" table="1" /}}
+&lt;/li&gt;
+
 &lt;ul&gt;
 {{/html}}
 
+#if($output.contains("livetable"))
+{{livetable #if($request.appname)app="${request.appname}"#else className="$classname" #end columns="${columns}" #if($selectedColumn)selectedColumn="${selectedColumn}"#end #if($defaultOrder)defaultOrder="${defaultOrder}"#end #if($ltFilters!="")extraParams="${ltFilters}"#end /}}
+#end
+
+#if($output.contains("table"))
 {{query query="$xwlquery" class="$classname" columns="$columns" headers="1" links="0" actions="1" /}}
+#end
+
+#if($output.contains("chart"))
+{{awmchart #if($request.appname)app="${request.appname}"#else className="$classname" #end category="${columns}" type="pie" title="Chart" width="500" height="500" table="1" /}}
+#end
 
 #end
+
 
 #if($request.debug)
 DEBUG: $qg.getDebug()
