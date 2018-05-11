@@ -1,25 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<!--
- * See the NOTICE file distributed with this work for additional
- * information regarding copyright ownership.
- *
- * This is free software; you can redistribute it and/or modify it
- * under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation; either version 2.1 of
- * the License, or (at your option) any later version.
- *
- * This software is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this software; if not, write to the Free
- * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
- * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
--->
-
 <xwikidoc version="1.3" reference="Macros.Livetable Macro" locale="">
   <web>Macros</web>
   <name>Livetable Macro</name>
@@ -45,7 +25,7 @@
 
 {{livetable id="movies2" app="Help.Applications.Movies" columns="doc.title,databaseList1,staticList1,date1,number1,longText1,doc.creationDate" selectedColumn="number1" defaultOrder="desc" extraParams="&amp;staticList1=romance" tagCloud="false" /}}
 
-{{livetable id="movies3" app="Help.Applications.Movies" columns="doc.title,databaseList1,staticList1,date1,number1,longText1,doc.creationDate" selectedColumn="number1" defaultOrder="asc" extraParams="&amp;staticList1=romance" tagCloud="false" /}}
+{{livetable id="movies3" app="Help.Applications.Movies" columns="title1,databaseList1,staticList1,date1,number1,longText1,doc.creationDate" selectedColumn="doc.title" defaultOrder="asc" extraParams="&amp;staticList1=romance" tagCloud="false" /}}
 
 </content>
   <object>
@@ -327,7 +307,7 @@ $string.replace("'", "''")##
  #set($className = $appDoc.getValue("class"))
 #end
 #if($xcontext.macro.params.columns=="")
- #set($columns = $xwiki.getDocument($classname).xWikiClass.propertyNames)
+ #set($columns = $xwiki.getDocument($className).xWikiClass.propertyNames)
 #else
  #set($columns = $xcontext.macro.params.columns.split(","))
 #end

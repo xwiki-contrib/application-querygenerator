@@ -1,25 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<!--
- * See the NOTICE file distributed with this work for additional
- * information regarding copyright ownership.
- *
- * This is free software; you can redistribute it and/or modify it
- * under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation; either version 2.1 of
- * the License, or (at your option) any later version.
- *
- * This software is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this software; if not, write to the Free
- * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
- * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
--->
-
 <xwikidoc version="1.3" reference="Macros.QueryGenerator" locale="">
   <web>Macros</web>
   <name>QueryGenerator</name>
@@ -57,6 +37,7 @@ It also provides the livetable and query macro to help show results using the qu
 #set($classname = "XWiki.XWikiUsers")
 #end
 #set($list = $services.query.xwql("from doc.object(AppWithinMinutes.LiveTableClass) as obj order by doc.title").execute())
+&lt;div class="panel panel-default"&gt;&lt;div class="panel-heading"&gt;Application&lt;/div&gt;&lt;div class="panel-body"&gt;
 &lt;form action=""&gt;
 Choose Application &lt;select name="appname"&gt;
 &lt;option value=""&gt;---&lt;/option&gt;&gt;
@@ -72,11 +53,12 @@ or Choose Class: &lt;select name="classname"&gt;
 &lt;/select&gt;
 &lt;input type="submit" value="Go" class="button" /&gt;
 &lt;/form&gt;
+&lt;/div&gt;&lt;/div&gt;
 {{/html}}
 
 #set($classDoc = $xwiki.getDocument($classname).getxWikiClass())
 #set($qg = $xwiki.parseGroovyFromPage("Macros.QueryGeneratorGroovy"))
-#set($ok = $qg.setXWiki($xwiki, $context))
+#set($ok = $qg.setXWiki($xwiki, $context, $services))
 
 ## Code
 #set($query = $qg.createQueryFromRequest($classname))
@@ -92,27 +74,31 @@ or Choose Class: &lt;select name="classname"&gt;
 #set($ok = $mydoc.use($classname))
 {{html clean=false}}
 &lt;form action="" method="get"&gt;
+&lt;div class="panel panel-default"&gt;&lt;div class="panel-heading"&gt;Filters&lt;/div&gt;&lt;div class="panel-body"&gt;&lt;div class="row"&gt;
 &lt;input type="hidden" name="query" value="1" /&gt;
 &lt;input type="hidden" name="classname" value="$classname" /&gt;
-&lt;table border="0"&gt;
 #set($even = true)
+#set($classes = "col-md-6")
 #foreach($field in $fields)
-#if($even==true)
-&lt;tr&gt;
+&lt;div class="col-sm-6" style="min-height: 50px; padding-bottom: 10px;"&gt;&lt;div class="row"&gt;
+&lt;div class="${classes}"&gt;&lt;b&gt;$mydoc.displayPrettyName($field)&lt;/b&gt;&lt;/div&gt;&lt;div class="${classes}"&gt;$qg.displaySearch($field, $classname, $query)&lt;/div&gt;
+&lt;/div&gt;&lt;/div&gt;
 #end
-&lt;td&gt;&lt;b&gt;$mydoc.displayPrettyName($field)&lt;/b&gt;&lt;/td&gt;&lt;td&gt;$qg.displaySearch($field, $classname, $query)&lt;/td&gt;
-#if($even==false)
-&lt;/tr&gt;
-#end
- #set($even = !$even)
-#end
-#if($even==false)
-&lt;/tr&gt;
-#end
-&lt;tr&gt;&lt;td&gt;&lt;b&gt;Columns&lt;/b&gt;&lt;/td&gt;&lt;td&gt;$qg.displaySearchColumns($classname, "", $query)&lt;/td&gt;
-&lt;td&gt;&lt;b&gt;Order by&lt;/b&gt;&lt;/td&gt;&lt;td&gt;$qg.displaySearchOrder($classname, "", $query)&lt;/td&gt;&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;&lt;b&gt;Output&lt;/b&gt;&lt;/td&gt;&lt;td&gt;
+&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;
+&lt;div class="panel panel-default"&gt;&lt;div class="panel-heading"&gt;Columns&lt;/div&gt;&lt;div class="panel-body"&gt;&lt;div class="row"&gt;
+&lt;div class="col-sm-6" style="min-height: 50px; padding-bottom: 10px;" &gt;&lt;div class="row"&gt;
+&lt;div class="col-md-4"&gt;&lt;b&gt;Columns&lt;/b&gt;&lt;/div&gt;&lt;div class="col-md-8"&gt;$qg.displaySearchColumns($classname, "", $query)&lt;/div&gt;
+&lt;/div&gt;&lt;/div&gt;
+&lt;div class="col-sm-6" style="min-height: 50px; padding-bottom: 10px;"&gt;&lt;div class="row"&gt;
+&lt;div class="col-md-4"&gt;&lt;b&gt;Order by&lt;/b&gt;&lt;/div&gt;&lt;div class="col-md-8"&gt;$qg.displaySearchOrder($classname, "", $query)&lt;/div&gt;
+&lt;/div&gt;&lt;/div&gt;
+&lt;div class="col-sm-6"&gt;&lt;div class="row"&gt;
+&lt;div class="col-md-4"&gt;&lt;b&gt;Aggregate Columns&lt;/b&gt;&lt;/div&gt;&lt;div class="col-md-8"&gt;$qg.displaySearchAggregateColumns($classname, "", $query)&lt;/div&gt;&lt;/div&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;
+&lt;div class="panel panel-default"&gt;&lt;div class="panel-heading"&gt;Output&lt;/div&gt;&lt;div class="panel-body"&gt;&lt;div class="row"&gt;
+&lt;div class="col-sm-3"&gt;&lt;b&gt;Output&lt;/b&gt;&lt;/div&gt;
+&lt;div class="col-sm-9"&gt;
 #if($request.output)
  #set($output = $request.getParameterValues("output"))
 #else
@@ -121,13 +107,13 @@ or Choose Class: &lt;select name="classname"&gt;
 &lt;input type="checkbox" name="output" value="livetable" #if($output.contains("livetable"))checked#end /&gt; Livetable
 &lt;input type="checkbox" name="output" value="table" #if($output.contains("table"))checked#end/&gt; Table
 &lt;input type="checkbox" name="output" value="chart" #if($output.contains("chart"))checked#end/&gt; Chart
-&lt;/td&gt;
-&lt;/tr&gt;
-&lt;/table&gt;
 &lt;input type="submit" value="Go" class="button" /&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;
 &lt;/form&gt;
 
 #if($request.query)
+&lt;div class="panel panel-default"&gt;&lt;div class="panel-heading"&gt;Macros&lt;/div&gt;&lt;div class="panel-body"&gt;&lt;div class="row"&gt;
 #if($request.searchorder)
 #set($order=$request.searchorder)
 #set($selectedColumn = $listtool.get($order.split(" "),0))
@@ -136,43 +122,225 @@ or Choose Class: &lt;select name="classname"&gt;
 
 #set($xwlquery = $qg.makeQuery($query))
 #set($ltFilters = $qg.makeLiveTableFilters($query))
-#set($columns = [])
+#set($searchColumns = [])
 #foreach($field in $query.searchdisplayfields)
- #set($ok = $columns.add($field.replaceAll("${classname}_","")))
+ #set($ok = $searchColumns.add($field.replaceAll("${classname}_","")))
 #end
-#set($columns = $stringtool.join($columns,","))
-&lt;ul&gt;
-&lt;li&gt;&lt;b&gt;Query (xwql):&lt;/b&gt;  $xwlquery&lt;/li&gt;
-&lt;li&gt;&lt;b&gt;Columns:&lt;/b&gt; $columns&lt;/li&gt;
-&lt;li&gt;&lt;b&gt;Table Macro:&lt;/b&gt; 
-{{query query="$xwlquery" class="$classname" columns="$columns" headers="1" links="0" actions="1" /}}
-&lt;li&gt;&lt;b&gt;Livetable Macro:&lt;/b&gt; 
-{{livetable #if($request.appname)app="${request.appname}"#else className="$classname" #end columns="${columns}" #if($selectedColumn)selectedColumn="${selectedColumn}"#end #if($defaultOrder)defaultOrder="${defaultOrder}"#end #if($ltFilters!="")extraParams="${ltFilters}"#end /}}
-&lt;/li&gt;
-&lt;li&gt;&lt;b&gt;Chart Macro:&lt;/b&gt; 
+#set($columns = $stringtool.join($searchColumns,","))
+#set($aggColumns = [])
+#foreach($field in $query.searchaggfields)
+ #set($ok = $aggColumns.add($field.replaceAll("${classname}_","")))
+#end
+#set($aggcolumns = $stringtool.join($aggColumns,","))
+#if($aggColumns&amp;&amp;$aggcolumns!="")
+ #set($queryColumns = "${columns},${aggcolumns}")
+#else
+ #set($queryColumns = $columns)
+#end
+&lt;div class="col-sm-3 col-xs-12"&gt;&lt;b&gt;Query (xwql):&lt;/b&gt;&lt;/div&gt;
+&lt;div class="col-sm-9 col-xs-12"&gt;$xwlquery&lt;/div&gt;
+&lt;div class="col-sm-3 col-xs-12"&gt;&lt;b&gt;Table Macro:&lt;/b&gt;&lt;/div&gt;
+&lt;div class="col-sm-9 col-xs-12"&gt;
+{{query query="$xwlquery" class="$classname" columns="$queryColumns" headers="1" links="0" actions="1" /}}
+&lt;/div&gt;
+&lt;div class="col-sm-3 col-xs-12"&gt;&lt;b&gt;Livetable Macro:&lt;/b&gt;&lt;/div&gt;
+&lt;div class="col-sm-9  col-xs-12"&gt;
+{{livetable #if($request.appname)app="${request.appname}"#else className="${classname}" #end columns="${columns}" #if($selectedColumn&amp;&amp;$selectedColumn!="__defaultsorting__")selectedColumn="${selectedColumn}"#end #if($defaultOrder)defaultOrder="${defaultOrder}"#end #if($ltFilters!="")extraParams="${ltFilters}"#end /}}
+&lt;/div&gt;
+&lt;div class="col-sm-3 col-xs-12"&gt;&lt;b&gt;Chart Macro:&lt;/b&gt;&lt;/div&gt;
+&lt;div class="col-sm-9 col-xs-12"&gt;
 {{awmchart #if($request.appname)app="${request.appname}"#else className="$classname" #end category="${columns}" type="pie" title="Chart" width="500" height="500" table="1" /}}
-&lt;/li&gt;
-
-&lt;ul&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;
 {{/html}}
 
 #if($output.contains("livetable"))
-{{livetable #if($request.appname)app="${request.appname}"#else className="$classname" #end columns="${columns}" #if($selectedColumn)selectedColumn="${selectedColumn}"#end #if($defaultOrder)defaultOrder="${defaultOrder}"#end #if($ltFilters!="")extraParams="${ltFilters}"#end /}}
+(% class="panel panel-default" %)
+(((
+(% class="panel-heading" %)((( Livetable Preview )))
+(% class="panel-body" %)
+(((
+#if($aggColumns &amp;&amp; $aggColumns.length()&gt;0)
+{{warning}}Warning: Aggregate columns are not supported by the livetable{{/warning}}
+
+#end
+
+{{livetable #if($request.appname)app="${request.appname}"#else className="$classname" #end columns="${columns}" #if($selectedColumn&amp;&amp;$selectedColumn!="__defaultsorting__")selectedColumn="${selectedColumn}"#end #if($defaultOrder)defaultOrder="${defaultOrder}"#end #if($ltFilters!="")extraParams="${ltFilters}"#end /}}
+)))
+)))
 #end
 
 #if($output.contains("table"))
-{{query query="$xwlquery" class="$classname" columns="$columns" headers="1" links="0" actions="1" /}}
+(% class="panel panel-default" %)
+(((
+(% class="panel-heading" %)((( Table Preview )))
+(% class="panel-body" %)
+(((
+#if($xcontext.hasRelationalStorageGroupBy)
+{{warning}}Warning: Multiple select relational storage columns are not supported by XWQL for grouping{{/warning}}
+
+#end
+
+#if($xcontext.hasRelationalStorageSort)
+{{warning}}Warning: Multiple select relational storage columns are not supported by XWQL for sorting{{/warning}}
+
+#end
+#if($aggColumns.size()&gt;0 &amp;&amp; $searchColumns.size()==0)
+{{warning}}Warning: At last one column is needed for a query with an aggregate{{/warning}}
+
+#end
+
+{{query query="$xwlquery" class="$classname" columns="$queryColumns" headers="1" links="0" actions="1" /}}
+)))
+)))
 #end
 
 #if($output.contains("chart"))
+(% class="panel panel-default" %)
+(((
+(% class="panel-heading" %)((( Chart Preview )))
+(% class="panel-body" %)
+(((
+#if($searchColumns.size()==0)
+{{warning}}Warning: At last one column is needed for a chart macro{{/warning}}
+
+#end
+#if($searchColumns.size()&gt;1)
+{{warning}}Warning: Only one column can be used by the chart macro{{/warning}}
+
+#end
 {{awmchart #if($request.appname)app="${request.appname}"#else className="$classname" #end category="${columns}" type="pie" title="Chart" width="500" height="500" table="1" /}}
+)))
+)))
 #end
-
 #end
-
 
 #if($request.debug)
+(% class="panel panel-default" %)
+(((
+(% class="panel-heading" %)((( Debug )))
+(% class="panel-body" %)
+(((
 DEBUG: $qg.getDebug()
+)))
+)))
 #end
 {{/velocity}}</content>
+  <object>
+    <name>Macros.QueryGenerator</name>
+    <number>0</number>
+    <className>XWiki.JavaScriptExtension</className>
+    <guid>9f46805c-8885-42c5-a33a-640697af6ea7</guid>
+    <class>
+      <name>XWiki.JavaScriptExtension</name>
+      <customClass/>
+      <customMapping/>
+      <defaultViewSheet/>
+      <defaultEditSheet/>
+      <defaultWeb/>
+      <nameField/>
+      <validationScript/>
+      <cache>
+        <cache>0</cache>
+        <disabled>0</disabled>
+        <displayType>select</displayType>
+        <multiSelect>0</multiSelect>
+        <name>cache</name>
+        <number>5</number>
+        <prettyName>Caching policy</prettyName>
+        <relationalStorage>0</relationalStorage>
+        <separator> </separator>
+        <separators>|, </separators>
+        <size>1</size>
+        <unmodifiable>0</unmodifiable>
+        <values>long|short|default|forbid</values>
+        <classType>com.xpn.xwiki.objects.classes.StaticListClass</classType>
+      </cache>
+      <code>
+        <contenttype>PureText</contenttype>
+        <disabled>0</disabled>
+        <editor>PureText</editor>
+        <name>code</name>
+        <number>2</number>
+        <prettyName>Code</prettyName>
+        <rows>20</rows>
+        <size>50</size>
+        <unmodifiable>0</unmodifiable>
+        <classType>com.xpn.xwiki.objects.classes.TextAreaClass</classType>
+      </code>
+      <name>
+        <disabled>0</disabled>
+        <name>name</name>
+        <number>1</number>
+        <prettyName>Name</prettyName>
+        <size>30</size>
+        <unmodifiable>0</unmodifiable>
+        <classType>com.xpn.xwiki.objects.classes.StringClass</classType>
+      </name>
+      <parse>
+        <disabled>0</disabled>
+        <displayFormType>select</displayFormType>
+        <displayType>yesno</displayType>
+        <name>parse</name>
+        <number>4</number>
+        <prettyName>Parse content</prettyName>
+        <unmodifiable>0</unmodifiable>
+        <classType>com.xpn.xwiki.objects.classes.BooleanClass</classType>
+      </parse>
+      <use>
+        <cache>0</cache>
+        <disabled>0</disabled>
+        <displayType>select</displayType>
+        <multiSelect>0</multiSelect>
+        <name>use</name>
+        <number>3</number>
+        <prettyName>Use this extension</prettyName>
+        <relationalStorage>0</relationalStorage>
+        <separator> </separator>
+        <separators>|, </separators>
+        <size>1</size>
+        <unmodifiable>0</unmodifiable>
+        <values>currentPage|onDemand|always</values>
+        <classType>com.xpn.xwiki.objects.classes.StaticListClass</classType>
+      </use>
+    </class>
+    <property>
+      <cache>long</cache>
+    </property>
+    <property>
+      <code>require.config({
+  paths: {
+    'xwiki-selectize': "$xwiki.getSkinFile('uicomponents/suggest/xwiki.selectize.js', true)" +
+      "?v=$escapetool.url($xwiki.version)"
+  }
+});
+
+require(['jquery', 'xwiki-selectize'], function($) {
+  'use strict';
+
+  var getSelectizeOptions = function(select) {
+   return {
+    create: true
+   }
+  };
+
+  $.fn.suggestPropertyValues = function() {
+    return this.each(function() {
+      $(this).xwikiSelectize(getSelectizeOptions($(this)));
+    });
+  };
+
+  $('.suggest-columns').suggestPropertyValues();
+});</code>
+    </property>
+    <property>
+      <name/>
+    </property>
+    <property>
+      <parse>1</parse>
+    </property>
+    <property>
+      <use>onDemand</use>
+    </property>
+  </object>
 </xwikidoc>
