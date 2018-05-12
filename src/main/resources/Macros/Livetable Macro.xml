@@ -193,6 +193,15 @@ $string.replace("'", "''")##
           #set ($discard = $properties.put('displayName', $titleDisplayNamePlaceHolder))
           #set ($titleDisplayNamePlaceHolder = $NULL)
         #end
+      #else
+       #if ($services.localization.render("${shortName}.livetable.${column}")=="${shortName}.livetable.${column}")
+        #set ($displayValue = $services.localization.render("platform.index.${column}"))
+        #if($displayValue == "platform.index.${column}")
+         #set ($discard = $properties.put('displayName', $column))
+        #else
+         #set ($discard = $properties.put('displayName', $displayValue))
+        #end
+       #end
       #end
       #if ($column == 'doc.location')
         #set ($discard = $properties.put('html', true))

@@ -35,6 +35,8 @@ public class QueryGenerator {
 
  def debugStr = "";
 
+ def genericFields = [ "doc.title" : "Title", "doc.name" : "Name", "doc.space" : "Space", "doc.fullName" : "Full name", "doc.location" : "Location", "doc.author" : "Author", "doc.creator" : "Creator", "doc.date" : "Last update Date", "doc.creationDate" : "Creation date", "doc.content" : "Content" ];
+
  public addDebug(str) {
    debugStr += str + "\n";
  }
@@ -53,9 +55,18 @@ public class QueryGenerator {
  public getPropertyList(baseClass) {
    def propList = new ArrayList();
    propList.addAll(baseClass.getPropertyNames());
-   propList.add("doc.title");
-   propList.add("doc.content");
+   for (item in genericFields.keySet()) {
+    propList.add(item)
+   }
    return propList;
+ }
+
+ public displayPrettyName(field, mydoc) {
+   if (field.startsWith("doc.")) {
+     return genericFields[field];
+   } else {
+     return mydoc.displayPrettyName(field);
+   }
  }
 
  public Map createQueryFromRequest(className) {
@@ -86,7 +97,7 @@ public class QueryGenerator {
    return query;
  }
 
- def displaySearchColumns(className, prefix, query) {
+ def displaySearchColumns(className, prefix, query, mydoc) {
         addSelectize();
         def baseClass = xwiki.getDocument(className).getxWikiClass();
         def select = new select(prefix + "searchdisplayfields", 10);
@@ -95,12 +106,13 @@ public class QueryGenerator {
         select.setID(prefix + "searchdisplayfields");
         select.setClass("suggest-columns");
         
-        List&lt;String&gt; list = Arrays.asList(baseClass.getPropertyNames());
+        def list = getPropertyList(baseClass)
+
         Map&lt;String, String&gt; prettynamesmap = new HashMap&lt;String, String&gt;();
         for (int i = 0; i &lt; list.size(); i++) {
             String propname = list.get(i);
             list.set(i, prefix + propname);
-            prettynamesmap.put(prefix + propname, baseClass.get(propname).getPrettyName());
+            prettynamesmap.put(prefix + propname, displayPrettyName(propname, mydoc));
         }
 
         def selectlist = query.get("searchdisplayfields");
@@ -136,7 +148,7 @@ public class QueryGenerator {
        select.addElement(aggOption);
     }
  
-    def displaySearchAggregateColumns(className, prefix, query) {
+    def displaySearchAggregateColumns(className, prefix, query, mydoc) {
         def baseClass = xwiki.getDocument(className).getxWikiClass();
         def select = new select(prefix + "searchaggfields", 10);
         select.setMultiple(true);
@@ -172,7 +184,7 @@ public class QueryGenerator {
         return select.toString();
     }
 
- def displaySearchOrder(className, prefix, query) {
+ def displaySearchOrder(className, prefix, query, mydoc) {
         def baseClass = xwiki.getDocument(className).getxWikiClass();
         def select = new select(prefix + "searchorder", 1);
         select.setMultiple(false);
@@ -252,11 +264,15 @@ public class QueryGenerator {
         def aggColumns = query.get("searchaggfields");
         for (col in columns) {
              def propClass = baseClass.get(col);
-             selectList.add("obj.${col}");
-             groupByList.add("obj." + col);
-            
+             if (col.startsWith("doc.")) {
+               selectList.add(col);
+               groupByList.add(col);
+             } else {
+               selectList.add("obj.${col}");
+               groupByList.add("obj." + col);
+             }
              // check compatibility of XWQL with multiselect relational storage group by fields
-             if (propClass.getProperty("relationalStorage") &amp;&amp; propClass.getProperty("multiSelect") 
+             if (propClass!=null &amp;&amp; propClass.getProperty("relationalStorage") &amp;&amp; propClass.getProperty("multiSelect") 
                  &amp;&amp; propClass.getProperty("relationalStorage").getValue()==1 
                  &amp;&amp; propClass.getProperty("multiSelect").getValue()==1) {
                hasRelationalStorage = true;
@@ -291,11 +307,18 @@ public class QueryGenerator {
 
         xwqlfrom.append("Document as doc, doc.object(" + className + ") as obj");
         def clauseList = new ArrayList();
-        for (propName in baseClass.getPropertyNames()) {
+        for (propName in getPropertyList(baseClass)) {
           def propClass = baseClass.get(propName);
-          if (propClass.type=="xxx") {
+          if (propName.startsWith("doc.")) {
+            if (propName=="doc.date" || propName=="doc.creationDate") {
+              clauseList.addAll(makeQueryDate(propClass, propName, propName, "", query));
+            } else {
+              clauseList.addAll(makeQueryString(propClass, propName, propName, "", query));
+            }
           } else if (propClass.type.contains("ListClass")) {
             clauseList.addAll(makeQueryList(propClass, propName, propName, "obj.", query));
+          } else if (propClass.type.contains("NumberClass")) {
+            clauseList.addAll(makeQueryNumber(propClass, propName, propName, "obj.", query));
           } else if (propClass.type.contains("BooleanClass")) {
             clauseList.addAll(makeQueryNumber(propClass, propName, propName, "obj.", query));
           } else if (propClass.type.contains("DateClass")) {
@@ -320,7 +343,7 @@ public class QueryGenerator {
             def propClass = baseClass.get(sortField)
             
             // check compatibility of XWQL with multiselect relational storage sort fields
-            if (propClass.getProperty("relationalStorage") &amp;&amp; propClass.getProperty("multiSelect") &amp;&amp; propClass.getProperty("relationalStorage").getValue()==1 &amp;&amp; propClass.getProperty("multiSelect").getValue()==1) {
+            if (propClass!=null &amp;&amp; propClass.getProperty("relationalStorage") &amp;&amp; propClass.getProperty("multiSelect") &amp;&amp; propClass.getProperty("relationalStorage").getValue()==1 &amp;&amp; propClass.getProperty("multiSelect").getValue()==1) {
                context.put("hasRelationalStorageSort","1")
             }
 
@@ -357,6 +380,23 @@ public class QueryGenerator {
         return xwql;
   }
 
+  def makeDateLiveTableFilters(clauseList, query, propClass, propName) {
+     def value1 = query.get(propName + "_morethan");
+     def value2 = query.get(propName + "_lessthan");
+     def sdformat = getSimpleDateFormat(propClass, propName);
+     def dvalue1 = (value1==null || value1=="") ? null : sdformat.parse(value1);
+     def dvalue2 = (value2==null || value2=="") ? null : sdformat.parse(value2);
+     if (dvalue1==null &amp;&amp; dvalue2==null)
+       return;
+     if (dvalue1==null) {
+       clauseList.add(propName + "=0-" + dvalue2.time);
+     } else if (dvalue2==null) {
+       clauseList.add(propName + "=" + dvalue1.time + "-9999999999999");
+     } else {
+       clauseList.add(propName + "=" + dvalue1.time + "-" + dvalue2.time);
+     }
+  }
+
   def makeLiveTableFilters(query) {
         def ltFilters = "";  
         def className = query.get("searchclass");
@@ -367,28 +407,24 @@ public class QueryGenerator {
 
         for (propName in propList) {
           def values = query.get(propName);
-          if (propName.startsWith("doc.") &amp;&amp; (values!=null) &amp;&amp; (values!="")) {           
-            clauseList.add(propName + "=" + values);    
+          def propClass = baseClass.get(propName);
+          if (propName.equals("doc.creationDate") || propName.equals("doc.date")) {
+              makeDateLiveTableFilters(clauseList, query, propClass, propName); 
+          } else if (propName.startsWith("doc.")) {
+              if ((values!=null) &amp;&amp; (values!="")) {  
+               clauseList.add(propName + "=" + values); 
+              }   
           } else {
-           def propClass = baseClass.get(propName);
-           if ((values != null) &amp;&amp; (!values.equals(""))) {
+           if (propClass.type.contains("DateClass")) {
+             makeDateLiveTableFilters(clauseList, query, propClass, propName);             
+           } else if ((values != null) &amp;&amp; (!values.equals(""))) {
             if (values instanceof String) {
              clauseList.add(propName + "=" + values);
             } else {
              String[] valuesarray = (String[]) values;
              for (int i = 0; i &lt; valuesarray.length; i++) {
                  clauseList.add(propName + "=" + valuesarray[i]);
-             }
-           }
-           if (propClass.type.contains("DateClass")) {
-             def value1 = query.get(propName + "_lessthan");
-             def value2 = query.get(propName + "_morethan");
-             def format = propClass.getProperty('dateFormat').value;
-             def sdformat = new SimpleDateFormat(format);
-             def dvalue1 = (value1==null || value1=="") ? null : sdformat.parse(value1);
-             def dvalue2 = (value2==null || value2=="") ? null : sdformat.parse(value2);
-             if (dvalue1!=null) 
-              clauseList.add(propName + "=" + dvalue1 + "-" + dvalue2);
+            }
            }
           }
          }
@@ -396,12 +432,14 @@ public class QueryGenerator {
         return clauseList.join("&amp;");
   }
 
- public String displaySearch(fieldName, className, query) {
+ public String displaySearch(fieldName, className, query, fieldList) {
     def baseClass = xwiki.getDocument(className).getxWikiClass();
     def propClass = baseClass.get(fieldName);
     def prefix = "" + className + "_";
     def name = "";
-    if (propClass!=null &amp;&amp; propClass.type.contains("Computed")) {
+    if (fieldName.startsWith("doc.")) {
+       name = fieldName;
+    } else if (propClass!=null &amp;&amp; propClass.type.contains("Computed")) {
        if (propClass.getProperty('customDisplay').value == '{{include reference="AppWithinMinutes.Title"/}}') {
              name = "doc.title";
        } else if (propClass.getProperty('customDisplay').value == '{{include reference="AppWithinMinutes.Content"/}}') {
@@ -410,16 +448,24 @@ public class QueryGenerator {
      } else {
                 name = fieldName;
      }
-
+    
     if (name=="") {
        return "";
     } else {
-       if (propClass.type.contains("BooleanClass")) {
+       fieldList.add(name);
+       if (propClass==null) {
+         if (name=="doc.date" || name=="doc.creationDate")
+          return displaySearchDate(propClass, name, prefix, query);
+         else
+          return displaySearchString(propClass, name, prefix, query);
+       } else if (propClass.type.contains("BooleanClass")) {
          return displaySearchRadio(propClass, name, prefix, query);
+       } else if (propClass.type.contains("NumberClass")) {
+         return displaySearchNumber(propClass, name, prefix, query);
        } else if (propClass.type.contains("ListClass")) {
          return displaySearchList(propClass, name, prefix, query);
        } else if (propClass.type.contains("DateClass")) {
-         return displayDateString(propClass, name, prefix, query);
+         return displaySearchDate(propClass, name, prefix, query);
        } else {
          return displaySearchString(propClass, name, prefix, query);
        }
@@ -450,10 +496,24 @@ public class QueryGenerator {
         return input.toString();
  }
 
+ def getDateFormat(propClass, name) {
+        def defaultFormat = (context.language=="fr") ? "dd/MM/yyyy" : "MM/dd/yyyy";
+        def format =  (name.startsWith("doc.")||propClass==null) ? defaultFormat : propClass.getProperty('dateFormat').value;
+        return format;
+ }
+
+ def getSimpleDateFormat(propClass, name) {
+        return new SimpleDateFormat(getDateFormat(propClass, name));
+ }
+
+ def getSQLSimpleDateFormat() {
+        return new SimpleDateFormat("yyyy-MM-dd");
+ }
+
  /*
   Date Field
  */
- def displayDateString(propClass, name, prefix, query) {
+ def displaySearchDate(propClass, name, prefix, query) {
         xwiki.ssfx.use('uicomponents/widgets/datepicker/calendarDateSelect.css', true)
         xwiki.jsfx.use('uicomponents/widgets/datepicker/calendarDateSelect.js', ['forceSkinAction': true, 'language': context.locale])
         xwiki.jsfx.use('uicomponents/widgets/datepicker/simpleDateFormat.js', ['forceSkinAction': true, 'language': context.locale])
@@ -461,14 +521,14 @@ public class QueryGenerator {
         xwiki.jsfx.use('uicomponents/widgets/datepicker/dateTimePicker.js')
 
         def fieldFullName = name;
-        def format = propClass.getProperty('dateFormat').value;
+        def format = getDateFormat(propClass, name);
         def input1 = new input();
         input1.setType("text");
-        input1.setName(prefix + name + "_lessthan");
-        input1.setID(prefix + name + "_lessthan");
+        input1.setName(prefix + name + "_morethan");
+        input1.setID(prefix + name + "_morethan");
         input1.setClass("datetime");
         input1.setTitle(format);
-        def data1 = query.get(fieldFullName + "_lessthan");
+        def data1 = query.get(fieldFullName + "_morethan");
         String value1 = "";
         if (data1!=null) {
             if (data1 instanceof List) {
@@ -482,11 +542,11 @@ public class QueryGenerator {
         }
         def input2 = new input();
         input2.setType("text");
-        input2.setName(prefix + name + "_morethan");
-        input2.setID(prefix + name + "_morethan");
+        input2.setName(prefix + name + "_lessthan");
+        input2.setID(prefix + name + "_lessthan");
         input2.setClass("datetime");
         input2.setTitle(format);
-        def data2 = query.get(fieldFullName + "_morethan");
+        def data2 = query.get(fieldFullName + "_lessthan");
         String value2 = "";
         if (data2!=null) {
             if (data2 instanceof List) {
@@ -500,6 +560,65 @@ public class QueryGenerator {
         }
  
         return "&lt;b&gt;From:&lt;/b&gt;&lt;br/&gt;" + input1.toString() + "&lt;br/&gt;&lt;b&gt;To:&lt;/b&gt;&lt;br/&gt;" + input2.toString();
+ }
+
+ /*
+  Number Field
+ */
+ def displaySearchNumber(propClass, name, prefix, query) {
+        def fieldFullName = name;
+
+        def input0 = new input();
+        input0.setType("text");
+        input0.setName(prefix + name);
+        input0.setID(prefix + name);
+        def data0 = query.get(fieldFullName);
+        String value0 = "";
+        if (data0!=null) {
+            if (data0 instanceof List) {
+              value0 = data0.getAt(0);
+            } else {
+             value0 = data0;
+            }
+        }
+        if (value0 != null) {
+            input0.setValue(value0.toString());
+        }
+
+        def input1 = new input();
+        input1.setType("text");
+        input1.setName(prefix + name + "_morethan");
+        input1.setID(prefix + name + "_morethan");
+        def data1 = query.get(fieldFullName + "_morethan");
+        String value1 = "";
+        if (data1!=null) {
+            if (data1 instanceof List) {
+              value1 = data1.getAt(0);
+            } else {
+             value1 = data1;
+            }
+        }
+        if (value1 != null) {
+            input1.setValue(value1.toString());
+        }
+        def input2 = new input();
+        input2.setType("text");
+        input2.setName(prefix + name + "_lessthan");
+        input2.setID(prefix + name + "_lessthan");
+        def data2 = query.get(fieldFullName + "_lessthan");
+        String value2 = "";
+        if (data2!=null) {
+            if (data2 instanceof List) {
+              value2 = data2.getAt(0);
+            } else {
+             value2 = data2;
+            }
+        }
+        if (value2 != null) {
+            input2.setValue(value2.toString());
+        }
+ 
+        return "&lt;b&gt;Exact value:&lt;/b&gt;&lt;br/&gt;" + input0.toString() + "&lt;br /&gt;&lt;b&gt;From:&lt;/b&gt;&lt;br/&gt;" + input1.toString() + "&lt;br/&gt;&lt;b&gt;To:&lt;/b&gt;&lt;br/&gt;" + input2.toString();
  }
 
  def makeQueryString(propClass, name, prefix, queryTablePrefix, map) {
@@ -656,18 +775,44 @@ public class QueryGenerator {
         return clauseList;
     }
 
+ def makeHQLQueryList(propClass, name, prefix, queryTablePrefix, map) {
+       def clauseList = new ArrayList();
+       def fullPropName = queryTablePrefix + name;
+       def pClass = propClass.getBasePropertyClass();   
+  
+       def values = map.get(prefix);
+        if ((values == null) || (values.equals(""))) {
+            return clauseList;
+        }
+        if (pClass.isMultiSelect())
+            fullPropName = "list";
+
+        if (values instanceof String) {
+            // general comparison '=' - tests at least one value =
+            clauseList.add(fullPropName + " = '" + values.toString() + "'");
+        } else {
+            String[] valuesarray = (String[]) values;
+            clauseList.add(fullPropName +  " in ('" + StringUtils.join(valuesarray, "','") + "')");
+        }
+        return clauseList;
+    }
+
     def makeQueryNumber(propClass, name, prefix, queryTablePrefix, map) {
         def clauseList = new ArrayList();
         def fullPropName = queryTablePrefix + name;
 
-        String lessthan = (String) map.get(prefix + "_lessthan");
+        String exact = (String) map.get(prefix);
         String morethan = (String) map.get(prefix + "_morethan");
+        String lessthan = (String) map.get(prefix + "_lessthan");
+        if (exact &amp;&amp; exact!="") {
+                clauseList.add(fullPropName + " = " + exact);
+        } 
+        if (morethan &amp;&amp; morethan!="") {
+                clauseList.add(fullPropName + " &gt;= " + morethan);
+        }
         if (lessthan &amp;&amp; lessthan!="") {
                 clauseList.add(fullPropName + " &lt;= " + lessthan);
         } 
-        if (morethan &amp;&amp; morethan!="") {
-                clauseList.add(fullPropName + " &gt;=" + morethan);
-        }
 
         /*
         value = (String) map.get(prefix + "exact");
@@ -687,14 +832,19 @@ public class QueryGenerator {
         def clauseList = new ArrayList();
         def fullPropName = queryTablePrefix + name;
 
-        String lessthan = (String) map.get(prefix + "_lessthan");
         String morethan = (String) map.get(prefix + "_morethan");
-        if (lessthan &amp;&amp; lessthan!="") {
-                clauseList.add(fullPropName + " &lt;= " + lessthan);
-        } 
+        String lessthan = (String) map.get(prefix + "_lessthan");
+        def sdformat = getSimpleDateFormat(propClass, name);
+        def dmorethan = (morethan==null || morethan=="") ? null : sdformat.parse(morethan);
+        def dlessthan = (lessthan==null || lessthan=="") ? null : sdformat.parse(lessthan);
+        def qlformat = getSQLSimpleDateFormat();
+
         if (morethan &amp;&amp; morethan!="") {
-                clauseList.add(fullPropName + " &gt;=" + morethan);
+                clauseList.add(fullPropName + " &gt;= '" + qlformat.format(dmorethan) + "'");
         }
+        if (lessthan &amp;&amp; lessthan!="") {
+                clauseList.add(fullPropName + " &lt;= '" + qlformat.format(dlessthan) + "'");
+        } 
 
         /*
         value = (String) map.get(prefix + "exact");
@@ -708,6 +858,257 @@ public class QueryGenerator {
         }
         */
         return clauseList;
+  }
+
+ def getTableName(propClass) {  
+     if (propClass==null)
+         return "";
+     def type = propClass.type;
+     if (type=='NumberClass') {
+         def numberType = propClass.getProperty('numberType').getValue()
+         if (numberType=="integer")
+            return "IntegerProperty";
+         else if (numberType=="float")
+            return "FloatProperty";
+         else if (numberType=="double")
+            return "DoubleProperty";
+         else
+            return "LongProperty";
+     } else if (type=="BooleanClass") {
+         return "IntegerProperty";
+     } else if (type=="DateClass") {
+         return "DateProperty";
+     } else if (type=="TextAreaClass"||type=="UsersClass"||type=="GroupsClass") {
+         return "LargeStringProperty";
+     } else if (type.contains("ListClass")||type=="PageClass") {
+         def multiSelect = propClass.getProperty('multiSelect').getValue()
+         def relationalStorage = propClass.getProperty('relationalStorage').getValue()
+         if (multiSelect &amp;&amp; relationalStorage)
+           return "DBStringListProperty";
+         else
+          return "StringProperty";
+     } else {      
+        return "StringProperty";
+     }
+ }
+
+ def getHQLFromAndWhere(query) {
+    def className = query.get("searchclass");
+    def baseClass = xwiki.getDocument(className).getxWikiClass();
+    def clauseList = getHQLWhere(query, baseClass);
+    def fromQL = ""
+    def whereQL = ""
+    for (clause in clauseList) {
+            if (clause.joinTable!="") {
+               fromQL += "," + clause.joinTable;
+               whereQL += clause.joinWhere;
+            } 
+            whereQL += clause.where.join("");
+    }
+    return [ "fromQL" : fromQL, "whereQL" : whereQL ];
+ }
+
+ def getHQLWhere(query, baseClass) {
+    def clauseList = []
+          
+    for (propName in getPropertyList(baseClass)) {
+          def propClass = baseClass.get(propName);
+          def clause = [ "joinWhere": "", "joinTable":"", "where": [] ];
+          def where = ""
+
+          if (propName.startsWith("doc.")) {
+            if (propName=="doc.date" || propName=="doc.creationDate") {
+               where = makeQueryDate(propClass, propName, propName, "", query);
+            } else {
+               where =  makeQueryString(propClass, propName, propName, "", query);
+            }
+            if (where &amp;&amp; where.size()&gt;0) {
+               clause.where.addAll(" and " + where.join(" and "));       
+            }
+         
+          } else {
+            if (propClass.type.contains("ListClass")) {
+             where = makeHQLQueryList(propClass, propName + ".value", propName, "prop", query);
+            } else if (propClass.type.contains("NumberClass")) {
+             where = makeQueryNumber(propClass, propName + ".value", propName, "prop", query);
+            } else if (propClass.type.contains("BooleanClass")) {
+             where = makeQueryNumber(propClass, propName + ".value", propName, "prop", query);
+            } else if (propClass.type.contains("DateClass")) {
+             where = makeQueryDate(propClass, propName + ".value", propName, "prop", query);
+            } else {
+             where = makeQueryString(propClass, propName + ".value", propName, "prop", query);
+            }
+            if (where &amp;&amp; where.size()&gt;0) {
+             // adding join queries
+             def tableName = getTableName(propClass);
+             def tableAlias = "prop${propName}";
+             if (tableName.equals("DBStringListProperty")) {
+              clause.joinTable = "${tableName} as ${tableAlias} join ${tableAlias}.list list";   
+             } else {
+              clause.joinTable = "${tableName} as ${tableAlias}";   
+             }
+             clause.joinWhere = " and obj.id=${tableAlias}.id.id and ${tableAlias}.id.name='${propName}'"; 
+             clause.where.addAll(" and " + where.join(" and "));       
+            }
+          }
+          clauseList.add(clause);
+    }
+    return clauseList;
+ }
+
+ def makeHQLQuery(query) {
+        def hqlselect = "";
+        def hqlfrom = "";
+        def hqlwhere = "";
+        def hqlgroupBy = "";
+        def hqlorder = "";
+
+        def hasAggregate = false;
+        def className = query.get("searchclass");
+        def baseClass = xwiki.getDocument(className).getxWikiClass()
+
+        hqlfrom = "XWikiDocument as doc, BaseObject as obj";
+        hqlwhere = "doc.fullName=obj.name and obj.className='${className}'";
+
+        def selectList = new ArrayList();
+        def groupByList = new ArrayList();
+        def joinedtables = new ArrayList();
+        def joinedwhere = "";
+        def columns = query.get("searchdisplayfields");
+        def aggColumns = query.get("searchaggfields");
+        for (col in columns) {
+             def propClass = baseClass.get(col);
+             if (propClass!=null &amp;&amp; propClass.type.contains("Computed")) {
+               if (propClass.getProperty('customDisplay').value == '{{include reference="AppWithinMinutes.Title"/}}') {
+                  selectList.add("doc.title");
+                  groupByList.add("doc.title"); 
+               } else if (propClass.getProperty('customDisplay').value == '{{include reference="AppWithinMinutes.Content"/}}') {
+                  selectList.add("doc.content"); 
+                  groupByList.add("doc.content"); 
+               }
+             } else {
+               def selectClause = "";
+               if (!col.startsWith("doc.")) {
+                def tableName = getTableName(propClass);
+                def tableAlias = "prop${col}"
+                if (tableName.equals("DBStringListProperty")) {
+                 selectClause = "list"
+                 def joinTable = "${tableName} as ${tableAlias} join ${tableAlias}.list list";
+                 joinedtables.add(joinTable);
+                 joinedwhere += " and obj.id=${tableAlias}.id.id and ${tableAlias}.id.name='${col}'";                        
+                } else { 
+                 selectClause = "prop${col}.value"  
+                 def joinTable = "${tableName} as ${tableAlias}";
+                 joinedtables.add(joinTable);
+                 joinedwhere += " and obj.id=prop${col}.id.id and prop${col}.id.name='${col}'";
+                }
+               } else {
+                 selectClause = col;
+               }
+               selectList.add(selectClause);
+               groupByList.add(selectClause);
+             }
+        }
+        for (col in aggColumns) {
+           if (col.startsWith("AGG_")) {
+             hasAggregate = true;
+             def colName = col.replaceAll("AGG_(.*?)_","");
+             def propClass = baseClass.get(colName);
+             def tableName = getTableName(propClass);
+             def tableAlias = "prop${colName}"
+             def joinTable = "${tableName} as ${tableAlias}";
+             if (!joinedtables.contains(joinTable) &amp;&amp; col!="AGG_COUNT" &amp;&amp; col!="AGG_COUNTDISTINCT") {
+               joinedtables.add(joinTable);
+               joinedwhere += " and obj.id=prop${colName}.id.id and prop${colName}.id.name='${colName}'";
+             }
+              
+             if (col=="AGG_COUNT") {
+               selectList.add("count(doc.fullName)");  
+             } else if (col=="AGG_COUNTDISTINCT") {
+               selectList.add("count(distinct doc.fullName)");  
+             } else if (col.startsWith("AGG_SUM")) {
+               selectList.add("sum(prop${colName}.value)");
+             } else if (col.startsWith("AGG_AVG")) {
+               selectList.add("avg(prop${colName}.value)");
+             } else if (col.startsWith("AGG_COUNT")) {
+               selectList.add("count(prop${colName}.value})");
+             } else if (col.startsWith("AGG_COUNTDISTINCT")) {
+               selectList.add("count(distinct prop${colName}.value)");
+             }
+           }
+        }
+
+        hqlselect += selectList.join(",")
+        hqlgroupBy += groupByList.join(",")
+
+        def clauseList = getHQLWhere(query, baseClass);
+        def restrictionJoinedTables = []
+        def restrictionJoinedWhere = ""
+        for (clause in clauseList) {
+            if (clause.joinTable!="") {
+              if (!joinedtables.contains(clause.joinTable)) {
+               joinedtables.add(clause.joinTable);
+               joinedwhere += clause.joinWhere;
+              }
+              restrictionJoinedTables.add(clause.joinTable);
+              restrictionJoinedWhere += clause.joinWhere;
+            }
+            hqlwhere += clause.where.join("");
+            restrictionJoinedWhere += clause.where.join("")
+        }
+
+        hqlwhere += " and doc.fullName not like '%Template'";
+        
+        if (query.get("searchorder")!=null &amp;&amp; query.get("searchorder").size()&gt;0) {
+         def searchorder = query.get("searchorder").getAt(0)
+         if (searchorder!="" &amp;&amp; searchorder!="__defaultsorting__") {
+          if (searchorder.startsWith("doc.")) {
+           hqlorder += searchorder;
+          } else {
+            def sortField = searchorder.substring(0, searchorder.indexOf(" "));
+            def sortDir = searchorder.substring(searchorder.indexOf(" ") + 1);
+            def propClass = baseClass.get(sortField)
+            
+            // check for computed fields which are not compatible
+            if (propClass.type.contains("Computed")) {
+               if (propClass.getProperty('customDisplay').value == '{{include reference="AppWithinMinutes.Title"/}}') {
+                 hqlorder += "doc.title ${sortDir}";
+               } else if (propClass.getProperty('customDisplay').value == '{{include reference="AppWithinMinutes.Content"/}}') {
+                 hqlorder += "doc.content ${sortDir}";
+               } else {
+                 context.put("hasComputedFieldSort","1");
+               }
+            } else {
+                 hqlorder += "obj." + searchorder;
+            }
+          }
+         }
+        }
+
+        String hql = "select doc.fullName";
+        if (hasAggregate) {
+          hql = "select " + hqlselect;
+        }
+
+        hql += " from " + hqlfrom;
+        if (hasAggregate &amp;&amp; joinedtables.size()&gt;0) {
+          hql += ", " + joinedtables.join(", ")
+        } else if (restrictionJoinedTables.size()&gt;0) {
+          hql += ", " + restrictionJoinedTables.join(", ");
+        }
+        if (hqlwhere.length() != 0)
+            hql += " where " + hqlwhere;
+        if (hasAggregate)
+            hql += joinedwhere;
+        else
+            hql += restrictionJoinedWhere;
+        if (hasAggregate &amp;&amp; hqlgroupBy.length() != 0)
+            hql += " group by " + hqlgroupBy;
+        if (hqlorder.length() != 0) {
+            hql += " order by " + hqlorder;
+        }
+
+        return hql;
   }
 
 }
