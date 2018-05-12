@@ -1,25 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<!--
- * See the NOTICE file distributed with this work for additional
- * information regarding copyright ownership.
- *
- * This is free software; you can redistribute it and/or modify it
- * under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation; either version 2.1 of
- * the License, or (at your option) any later version.
- *
- * This software is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this software; if not, write to the Free
- * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
- * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
--->
-
 <xwikidoc version="1.3" reference="Macros.QueryGenerator" locale="">
   <web>Macros</web>
   <name>QueryGenerator</name>
@@ -190,7 +170,7 @@ or Choose Class: &lt;select name="classname"&gt;
 {{query query="$hqlquery" type="hql" class="$classname" columns="$queryColumns" headers="1" links="0" actions="1" /}}
 &lt;/div&gt;
 &lt;div class="col-sm-3 col-xs-12"&gt;&lt;b&gt;Livetable Macro:&lt;/b&gt;&lt;/div&gt;
-&lt;div class="col-sm-9  col-xs-12"&gt;
+&lt;div class="col-sm-9  col-xs-12" style="padding-bottom: 10px"&gt;
 {{livetable #if($request.appname)app="${request.appname}"#else className="${classname}" #end columns="${columns}" #if($selectedColumn&amp;&amp;$selectedColumn!="__defaultsorting__")selectedColumn="${selectedColumn}"#end #if($defaultOrder)defaultOrder="${defaultOrder}"#end #if($ltFilters!="")extraParams="${ltFilters}"#end /}}
 &lt;/div&gt;
 &lt;div class="col-sm-3 col-xs-12"&gt;&lt;b&gt;Chart Macro:&lt;/b&gt;&lt;/div&gt;

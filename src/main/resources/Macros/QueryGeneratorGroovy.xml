@@ -1,25 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<!--
- * See the NOTICE file distributed with this work for additional
- * information regarding copyright ownership.
- *
- * This is free software; you can redistribute it and/or modify it
- * under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation; either version 2.1 of
- * the License, or (at your option) any later version.
- *
- * This software is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this software; if not, write to the Free
- * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
- * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
--->
-
 <xwikidoc version="1.3" reference="Macros.QueryGeneratorGroovy" locale="">
   <web>Macros</web>
   <name>QueryGeneratorGroovy</name>
@@ -805,7 +785,7 @@ public class QueryGenerator {
             return clauseList;
         }
         if (pClass.isMultiSelect())
-            fullPropName = "list";
+            fullPropName = "${prefix}list";
 
         if (values instanceof String) {
             // general comparison '=' - tests at least one value =
@@ -963,7 +943,7 @@ public class QueryGenerator {
              def tableName = getTableName(propClass);
              def tableAlias = "prop${propName}";
              if (tableName.equals("DBStringListProperty")) {
-              clause.joinTable = "${tableName} as ${tableAlias} join ${tableAlias}.list list";   
+              clause.joinTable = "${tableName} as ${tableAlias} join ${tableAlias}.list ${propName}list";   
              } else {
               clause.joinTable = "${tableName} as ${tableAlias}";   
              }
@@ -1012,8 +992,8 @@ public class QueryGenerator {
                 def tableName = getTableName(propClass);
                 def tableAlias = "prop${col}"
                 if (tableName.equals("DBStringListProperty")) {
-                 selectClause = "list"
-                 def joinTable = "${tableName} as ${tableAlias} join ${tableAlias}.list list";
+                 selectClause = "${col}list"
+                 def joinTable = "${tableName} as ${tableAlias} join ${tableAlias}.list ${col}list";
                  joinedtables.add(joinTable);
                  joinedwhere += " and obj.id=${tableAlias}.id.id and ${tableAlias}.id.name='${col}'";                        
                 } else { 
@@ -1079,11 +1059,13 @@ public class QueryGenerator {
 
         hqlwhere += " and doc.fullName not like '%Template'";
         
+        def orderjointables = [];
+        def orderjoinwhere = "";
         if (query.get("searchorder")!=null &amp;&amp; query.get("searchorder").size()&gt;0) {
          def searchorder = query.get("searchorder").getAt(0)
          if (searchorder!="" &amp;&amp; searchorder!="__defaultsorting__") {
           if (searchorder.startsWith("doc.")) {
-           hqlorder += searchorder;
+            hqlorder += searchorder;
           } else {
             def sortField = searchorder.substring(0, searchorder.indexOf(" "));
             def sortDir = searchorder.substring(searchorder.indexOf(" ") + 1);
@@ -1099,7 +1081,25 @@ public class QueryGenerator {
                  context.put("hasComputedFieldSort","1");
                }
             } else {
-                 hqlorder += "obj." + searchorder;
+                def tableName = getTableName(propClass);
+                def tableAlias = "prop${sortField}"
+                def orderClause = ""
+                if (tableName.equals("DBStringListProperty")) {
+                 orderClause = "${sortField}list"
+                 def joinTable = "${tableName} as ${tableAlias} join ${tableAlias}.list ${sortField}list";
+                 if ((!restrictionJoinedTables.contains(joinTable)) &amp;&amp; (!hasAggregate || !joinedtables.contains(joinTable))) {
+                   orderjointables.add(joinTable);
+                   orderjoinwhere += " and obj.id=${tableAlias}.id.id and ${tableAlias}.id.name='${sortField}'";  
+                 }                      
+                } else { 
+                 orderClause = "prop${sortField}.value";  
+                 def joinTable = "${tableName} as ${tableAlias}";
+                 if ((!restrictionJoinedTables.contains(joinTable)) &amp;&amp; (!hasAggregate || !joinedtables.contains(joinTable))) {
+                   orderjointables.add(joinTable);
+                   orderjoinwhere += " and obj.id=prop${sortField}.id.id and prop${sortField}.id.name='${sortField}'";
+                 }
+                }
+                hqlorder += orderClause + " " + sortDir;
             }
           }
          }
@@ -1116,12 +1116,16 @@ public class QueryGenerator {
         } else if (restrictionJoinedTables.size()&gt;0) {
           hql += ", " + restrictionJoinedTables.join(", ");
         }
+        if (orderjointables.size()&gt;0) {
+          hql += ", " + orderjointables.join(", ");
+        }
         if (hqlwhere.length() != 0)
             hql += " where " + hqlwhere;
         if (hasAggregate)
             hql += joinedwhere;
         else
             hql += restrictionJoinedWhere;
+        hql += orderjoinwhere;
         if (hasAggregate &amp;&amp; hqlgroupBy.length() != 0)
             hql += " group by " + hqlgroupBy;
         if (hqlorder.length() != 0) {
