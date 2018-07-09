@@ -1,25 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<!--
- * See the NOTICE file distributed with this work for additional
- * information regarding copyright ownership.
- *
- * This is free software; you can redistribute it and/or modify it
- * under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation; either version 2.1 of
- * the License, or (at your option) any later version.
- *
- * This software is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this software; if not, write to the Free
- * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
- * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
--->
-
 <xwikidoc version="1.3" reference="Macros.QueryGenerator" locale="">
   <web>Macros</web>
   <name>QueryGenerator</name>
@@ -152,6 +132,23 @@ or Choose Class: &lt;select name="classname"&gt;
  #set($ok = $searchColumns.add($field.replaceAll("${classname}_","")))
 #end
 #set($columns = $stringtool.join($searchColumns,","))
+#if($searchColumns.size()==1)
+ #set($colName = $listtool.get($searchColumns,0))
+ #if($colName.startsWith("COL_"))
+  #set($columns = $colName.replaceAll("COL_(.*?)_",""))
+  #if(!$columns.startsWith("doc."))
+   #set($functionColName = "prop.value")
+  #end
+  #set($functionName = $colName.replaceAll("COL_(.*?)_.*",'$1'))
+  #if($functionName=="YEAR")
+   #set($function = "year(${functionColName})")
+  #elseif($functionName=="MONTH")
+   #set($function = "100*year(${functionColName})+month(${functionColName})")
+  #elseif($functionName=="DAY")
+   #set($function = "10000*year(${functionColName})+100*month(${functionColName})+day(${functionColName})")
+  #end
+ #end
+#end
 #set($aggColumns = [])
 #foreach($field in $query.searchaggfields)
  #set($ok = $aggColumns.add($field.replaceAll("${classname}_","")))
@@ -195,7 +192,7 @@ or Choose Class: &lt;select name="classname"&gt;
 &lt;/div&gt;
 &lt;div class="col-sm-3 col-xs-12"&gt;&lt;b&gt;Chart Macro:&lt;/b&gt;&lt;/div&gt;
 &lt;div class="col-sm-9 col-xs-12" style="padding-bottom: 10px"&gt;
-{{awmchart #if($request.appname)app="${request.appname}"#else className="$classname" #end category="${columns}" type="pie" title="Chart" width="500" height="500" table="1" #if($fromAndWhere.fromQL)fromHQL="${fromAndWhere.fromQL}"#end #if($fromAndWhere.whereQL)whereHQL="${fromAndWhere.whereQL}"#end #if($aggColumn)aggregate="${aggColumn}"#end #if($aggFunction)aggregateFunction="${aggFunction}"#end /}}
+{{awmchart #if($request.appname)app="${request.appname}"#else className="$classname" #end category="${columns}" #if($function)function="${function}"#end type="pie" title="Chart" width="500" height="500" table="1" #if($fromAndWhere.fromQL)fromHQL="${fromAndWhere.fromQL}"#end #if($fromAndWhere.whereQL)whereHQL="${fromAndWhere.whereQL}"#end #if($aggColumn)aggregate="${aggColumn}"#end #if($aggFunction)aggregateFunction="${aggFunction}"#end /}}
 &lt;/div&gt;
 &lt;/div&gt;&lt;/div&gt;&lt;/div&gt;
 {{/html}}
@@ -275,7 +272,7 @@ or Choose Class: &lt;select name="classname"&gt;
 {{warning}}Warning: Only one Aggregate column is supported by the chart macro{{/warning}}
 
 #end
-{{awmchart #if($request.appname)app="${request.appname}"#else className="$classname" #end category="${columns}" type="pie" title="Chart" width="500" height="500" table="1" #if($fromAndWhere.fromQL)fromHQL="${fromAndWhere.fromQL}"#end #if($fromAndWhere.whereQL)whereHQL="${fromAndWhere.whereQL}"#end #if($aggColumn)aggregate="${aggColumn}"#end #if($aggFunction)aggregateFunction="${aggFunction}"#end /}}
+{{awmchart #if($request.appname)app="${request.appname}"#else className="$classname" #end category="${columns}" #if($function)function="${function}"#end type="pie" title="Chart" width="500" height="500" table="1" #if($fromAndWhere.fromQL)fromHQL="${fromAndWhere.fromQL}"#end #if($fromAndWhere.whereQL)whereHQL="${fromAndWhere.whereQL}"#end #if($aggColumn)aggregate="${aggColumn}"#end #if($aggFunction)aggregateFunction="${aggFunction}"#end /}}
 )))
 )))
 #end

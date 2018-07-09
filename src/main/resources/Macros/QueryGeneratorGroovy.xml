@@ -97,6 +97,21 @@ public class QueryGenerator {
    return query;
  }
 
+ def addColumn(select, selectlist, name, displayName, value, displayValue) {
+       def sdisplayValue = ((displayValue==null) ? "" : displayValue);
+       def sdisplayName = "${displayName} ${sdisplayValue}";
+       def aggOption = new option(sdisplayName, sdisplayName);
+       def svalue = "${name}";
+       if (value!=null)
+        svalue += value;
+       aggOption.setValue(svalue);
+       if (selectlist.contains(svalue)) {
+          aggOption.setSelected(true);
+       }
+       aggOption.addElement(sdisplayName);
+       select.addElement(aggOption);
+ }
+ 
  def displaySearchColumns(className, prefix, query, mydoc) {
         addSelectize();
         def baseClass = xwiki.getDocument(className).getxWikiClass();
@@ -128,6 +143,13 @@ public class QueryGenerator {
             }
             option.addElement(displayValue);
             select.addElement(option);
+
+            def propDef = baseClass.get(value)
+            if ((propDef!=null &amp;&amp; propDef.type.equals("DateClass")) || value=="doc.creationDate" || value =="doc.date") {
+              addColumn(select, selectlist, "COL_YEAR_", "Year of ", value, displayValue);
+              addColumn(select, selectlist, "COL_MONTH_", "Month of ", value, displayValue);
+              addColumn(select, selectlist, "COL_DAY_", "Day of ", value, displayValue);
+            }
         }
 
         return select.toString();
@@ -261,21 +283,39 @@ public class QueryGenerator {
         def selectList = new ArrayList();
         def groupByList = new ArrayList();
         def columns = query.get("searchdisplayfields");
+        addDebug("columns: ${columns}")
         def aggColumns = query.get("searchaggfields");
         for (col in columns) {
-             def propClass = baseClass.get(col);
-             if (col.startsWith("doc.")) {
-               selectList.add(col);
-               groupByList.add(col);
+             if (col.startsWith("COL_")) {
+                def colName = col.replaceAll("COL_(.*?)_","");
+                def functionName = col.replaceAll("COL_(.*?)_(.*)","\$1");
+                addDebug("In col ${col} colName: ${colName} functionName: ${functionName}")
+                if (!colName.startsWith("doc."))
+                   colName = "obj.${colName}"
+                if (functionName=="YEAR")
+                   colName = "year(${colName})"  
+                else if (functionName=="MONTH")
+                   colName = "100*year(${colName})+month(${colName})"  
+                else if (functionName=="DAY")
+                   colName = "10000*year(${colName})+100*month(${colName})+day(${colName})"; 
+
+                selectList.add(colName);
+                groupByList.add(colName); 
              } else {
-               selectList.add("obj.${col}");
-               groupByList.add("obj." + col);
-             }
-             // check compatibility of XWQL with multiselect relational storage group by fields
-             if (propClass!=null &amp;&amp; propClass.getProperty("relationalStorage") &amp;&amp; propClass.getProperty("multiSelect") 
-                 &amp;&amp; propClass.getProperty("relationalStorage").getValue()==1 
-                 &amp;&amp; propClass.getProperty("multiSelect").getValue()==1) {
-               hasRelationalStorage = true;
+               def propClass = baseClass.get(col);
+               if (col.startsWith("doc.")) {
+                 selectList.add(col);
+                 groupByList.add(col);
+               } else {
+                 selectList.add("obj.${col}");
+                 groupByList.add("obj." + col);
+               }
+               // check compatibility of XWQL with multiselect relational storage group by fields
+               if (propClass!=null &amp;&amp; propClass.getProperty("relationalStorage") &amp;&amp; propClass.getProperty("multiSelect") 
+                   &amp;&amp; propClass.getProperty("relationalStorage").getValue()==1 
+                   &amp;&amp; propClass.getProperty("multiSelect").getValue()==1) {
+                 hasRelationalStorage = true;
+               }
             }
         }
         for (col in aggColumns) {
