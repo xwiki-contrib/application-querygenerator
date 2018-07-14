@@ -65,7 +65,7 @@ or Choose Class: &lt;select name="classname"&gt;
 #set($class = $xwiki.getDocument($classname).xWikiClass)
 
 #set($searchdisplayfields = $query.searchdisplayfields)
-#set($fields = $qg.getPropertyList($classDoc))
+#set($fields = $qg.getPropertyList($classDoc, true))
 #if($searchdisplayfields.size()==0)
 #set($searchdisplayfields = "")
 #end
@@ -83,7 +83,7 @@ or Choose Class: &lt;select name="classname"&gt;
 #foreach($field in $fields)
  #if(!$fieldList.contains($field))
 &lt;div class="col-sm-6" style="min-height: 50px; padding-bottom: 10px;"&gt;&lt;div class="row"&gt;
-&lt;div class="${classes}"&gt;&lt;b&gt;${qg.displayPrettyName($field,$mydoc)}&lt;/b&gt;&lt;/div&gt;&lt;div class="${classes}"&gt;$qg.displaySearch($field, $classname, $query, $fieldList)&lt;/div&gt;
+&lt;div class="${classes}"&gt;&lt;b&gt;${qg.displayPrettyName($field,$classname)}&lt;/b&gt;&lt;/div&gt;&lt;div class="${classes}"&gt;$qg.displaySearch($field, $classname, $query, $fieldList)&lt;/div&gt;
 &lt;/div&gt;&lt;/div&gt;
  #end
 #end

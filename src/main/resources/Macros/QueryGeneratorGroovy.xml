@@ -52,20 +52,25 @@ public class QueryGenerator {
    this.services = services;
  }
 
- public getPropertyList(baseClass) {
+ public getPropertyList(baseClass, withGenericFields) {
    def propList = new ArrayList();
    propList.addAll(baseClass.getPropertyNames());
-   for (item in genericFields.keySet()) {
-    propList.add(item)
+   if (withGenericFields) {
+    for (item in genericFields.keySet()) {
+      propList.add(item)
+    }
    }
    return propList;
  }
 
- public displayPrettyName(field, mydoc) {
+ public displayPrettyName(field, className) {
    if (field.startsWith("doc.")) {
      return genericFields[field];
    } else {
-     return mydoc.displayPrettyName(field);
+     def fakeDoc = xwiki.getDocument("Sandbox.Sandbox");
+     fakeDoc.newObject(className);
+     fakeDoc.use(className);
+     return fakeDoc.displayPrettyName(field);
    }
  }
 
@@ -80,7 +85,7 @@ public class QueryGenerator {
    query.put("searchorder", order); 
 
    def baseClass = xwiki.getDocument(className).getxWikiClass();
-   def propList = getPropertyList(baseClass);
+   def propList = getPropertyList(baseClass, true);
 
    for (propname in propList) {
        for (paramName in request.getParameterNames()) {
@@ -97,15 +102,15 @@ public class QueryGenerator {
    return query;
  }
 
- def addColumn(select, selectlist, name, displayName, value, displayValue) {
-       def sdisplayValue = ((displayValue==null) ? "" : displayValue);
-       def sdisplayName = "${displayName} ${sdisplayValue}";
+ def addColumn(select, selectlist, prefix, displayNamePrefix, name, displayName) {
+       def sdisplayName = ((displayName==null) ? "" : displayName);
+       sdisplayName = "${displayNamePrefix} ${sdisplayName}";
        def aggOption = new option(sdisplayName, sdisplayName);
-       def svalue = "${name}";
-       if (value!=null)
-        svalue += value;
-       aggOption.setValue(svalue);
-       if (selectlist.contains(svalue)) {
+       def sName = "${prefix}";
+       if (name!=null)
+        sName += name;
+       aggOption.setValue(sName);
+       if (selectlist.contains(sName)) {
           aggOption.setSelected(true);
        }
        aggOption.addElement(sdisplayName);
@@ -114,45 +119,50 @@ public class QueryGenerator {
  
  def displaySearchColumns(className, prefix, query, mydoc) {
         addSelectize();
-        def baseClass = xwiki.getDocument(className).getxWikiClass();
         def select = new select(prefix + "searchdisplayfields", 10);
         select.setMultiple(true);
         select.setName(prefix + "searchdisplayfields");
         select.setID(prefix + "searchdisplayfields");
         select.setClass("suggest-columns");
-        
-        def list = getPropertyList(baseClass)
+
+        def selectlist = query.get("searchdisplayfields");
+        if (selectlist==null) selectlist = new ArrayList();
+        addSearchColumns(select, selectlist, className, prefix, "", query, mydoc);
+        return select.toString();
+ }
+ 
+ def addSearchColumns(select, selectlist, className, prefix, displayPrefix, query, mydoc) {
+        def baseClass = xwiki.getDocument(className).getxWikiClass();       
+        def list = getPropertyList(baseClass, (prefix==""))
 
         Map&lt;String, String&gt; prettynamesmap = new HashMap&lt;String, String&gt;();
         for (int i = 0; i &lt; list.size(); i++) {
             String propname = list.get(i);
             list.set(i, prefix + propname);
-            prettynamesmap.put(prefix + propname, displayPrettyName(propname, mydoc));
+            prettynamesmap.put(prefix + propname, displayPrettyName(propname, className));
         }
-
-        def selectlist = query.get("searchdisplayfields");
-        if (selectlist==null) selectlist = new ArrayList();
 
         // Add options from Set
-        for (value in list) {
-            String displayValue = prettynamesmap.get(value);
-            def option = new option(displayValue, displayValue);
-            option.setValue(value);
-            if (selectlist.contains(value)) {
-                option.setSelected(true);
+        for (propname in list) {
+            String displayName = prettynamesmap.get(propname);
+            addColumn(select, selectlist, "", displayPrefix, propname, displayName);
+  
+            def propDef = baseClass.get(propname)
+            if ((propDef!=null &amp;&amp; propDef.type.equals("DateClass")) || propname=="doc.creationDate" || propname =="doc.date") {
+              addColumn(select, selectlist, "COL_YEAR_", "Year of ", propname, displayName);
+              addColumn(select, selectlist, "COL_MONTH_", "Month of ", propname, displayName);
+              addColumn(select, selectlist, "COL_DAY_", "Day of ", propname, displayName);
             }
-            option.addElement(displayValue);
-            select.addElement(option);
 
-            def propDef = baseClass.get(value)
-            if ((propDef!=null &amp;&amp; propDef.type.equals("DateClass")) || value=="doc.creationDate" || value =="doc.date") {
-              addColumn(select, selectlist, "COL_YEAR_", "Year of ", value, displayValue);
-              addColumn(select, selectlist, "COL_MONTH_", "Month of ", value, displayValue);
-              addColumn(select, selectlist, "COL_DAY_", "Day of ", value, displayValue);
+            if (propDef!=null &amp;&amp; propDef.type.equals("DBListClass")) {
+               def sql = propDef.getBasePropertyClass().get("sql").getValue();
+               def dbListClassName = sql.replaceAll(".*[.]className.*?=.*?'(.*?)'.*","\$1")
+               addDebug("Found ${dbListClassName} in ${sql}");
+               if (xwiki.exists(dbListClassName)) {
+                  addSearchColumns(select, selectlist, dbListClassName, "${propname}_", displayName + " - ", query, mydoc);
+               }
             }
         }
-
-        return select.toString();
     }
 
     def addAggregate(select, selectlist, name, displayName, value, displayValue) {
@@ -218,6 +228,26 @@ public class QueryGenerator {
         defaultOption.addElement("No sorting");
         defaultOption.setValue("__defaultsorting__");
         select.addElement(defaultOption);
+
+        def order1Option = new option("","First column (desc)");
+        order1Option.addElement("First column (desc)");
+        order1Option.setValue("1 desc");
+        select.addElement(order1Option);
+
+        order1Option = new option("","First column (asc)");
+        order1Option.addElement("First column (asc)");
+        order1Option.setValue("1 asc");
+        select.addElement(order1Option);
+
+        def order2Option = new option("","Second column (desc)");
+        order2Option.addElement("Second column (desc)");
+        order2Option.setValue("2 desc");
+        select.addElement(order2Option);
+
+        order2Option = new option("","Second column (asc)");
+        order2Option.addElement("Second column (asc)");
+        order2Option.setValue("2 asc");
+        select.addElement(order2Option);
            
         List&lt;String&gt; list = Arrays.asList(baseClass.getPropertyNames());
         Map&lt;String, String&gt; prettynamesmap = new HashMap&lt;String, String&gt;();
@@ -289,7 +319,7 @@ public class QueryGenerator {
              if (col.startsWith("COL_")) {
                 def colName = col.replaceAll("COL_(.*?)_","");
                 def functionName = col.replaceAll("COL_(.*?)_(.*)","\$1");
-                addDebug("In col ${col} colName: ${colName} functionName: ${functionName}")
+                addDebug("In col ${col} colName: ${colName} functionName: ${functionName}")
                 if (!colName.startsWith("doc."))
                    colName = "obj.${colName}"
                 if (functionName=="YEAR")
@@ -347,7 +377,7 @@ public class QueryGenerator {
 
         xwqlfrom.append("Document as doc, doc.object(" + className + ") as obj");
         def clauseList = new ArrayList();
-        for (propName in getPropertyList(baseClass)) {
+        for (propName in getPropertyList(baseClass, true)) {
           def propClass = baseClass.get(propName);
           if (propName.startsWith("doc.")) {
             if (propName=="doc.date" || propName=="doc.creationDate") {
@@ -375,7 +405,7 @@ public class QueryGenerator {
         if (query.get("searchorder")!=null &amp;&amp; query.get("searchorder").size()&gt;0) {
          def searchorder = query.get("searchorder").getAt(0)
          if (searchorder!="" &amp;&amp; searchorder!="__defaultsorting__") {
-          if (searchorder.startsWith("doc.")) {
+          if (searchorder.startsWith("doc.") || searchorder.startsWith("1 ") || searchorder.startsWith("2 ")) {
            xwqlorder.append(searchorder)
           } else {
             def sortField = searchorder.substring(0, searchorder.indexOf(" "));
@@ -443,7 +473,7 @@ public class QueryGenerator {
         def baseClass = xwiki.getDocument(className).getxWikiClass()
         
         def clauseList = new ArrayList();
-        def propList = getPropertyList(baseClass);
+        def propList = getPropertyList(baseClass, true);
 
         for (propName in propList) {
           def values = query.get(propName);
@@ -958,7 +988,7 @@ public class QueryGenerator {
  def getHQLWhere(query, baseClass) {
     def clauseList = []
           
-    for (propName in getPropertyList(baseClass)) {
+    for (propName in getPropertyList(baseClass, true)) {
           def propClass = baseClass.get(propName);
           def clause = [ "joinWhere": "", "joinTable":"", "where": [] ];
           def where = ""
@@ -1111,7 +1141,7 @@ public class QueryGenerator {
         if (query.get("searchorder")!=null &amp;&amp; query.get("searchorder").size()&gt;0) {
          def searchorder = query.get("searchorder").getAt(0)
          if (searchorder!="" &amp;&amp; searchorder!="__defaultsorting__") {
-          if (searchorder.startsWith("doc.")) {
+          if (searchorder.startsWith("doc.") || searchorder.startsWith("1 ") || searchorder.startsWith("2 ")) {
             hqlorder += searchorder;
           } else {
             def sortField = searchorder.substring(0, searchorder.indexOf(" "));
