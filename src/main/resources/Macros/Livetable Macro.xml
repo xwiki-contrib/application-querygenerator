@@ -1346,7 +1346,7 @@ $string.replace("'", "''")##
       </name>
     </class>
     <property>
-      <defaultValue>currentLanguage,hidden</defaultValue>
+      <defaultValue>currentlanguage,hidden</defaultValue>
     </property>
     <property>
       <description>Optionally specifies a comma-separated list of already registered Query filter names to apply. Pass the empty string if you don't want any query filters to be applied. If not specified, the default query filters are applied.</description>
