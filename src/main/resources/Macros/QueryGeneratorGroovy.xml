@@ -23,7 +23,7 @@
 import org.apache.ecs.xhtml.input;
 import org.apache.ecs.xhtml.select;
 import org.apache.ecs.xhtml.option;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import java.text.SimpleDateFormat;
 import com.xpn.xwiki.objects.classes.ListClass;
 
